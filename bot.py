@@ -6,8 +6,12 @@ from status_report import status
 import yfinance as yf
 import pandas as pd
 import time
+import os
+from dotenv import load_dotenv
 
-TOKEN = "7781796905:AAGbeuu5lcfWUAPgJzI6JAL5fQRyVHveowI"
+# Завантаження токена із змінних середовища
+load_dotenv()
+TOKEN = os.getenv("TELEGRAM_TOKEN")
 
 app = Flask(__name__)
 job_reference = None
