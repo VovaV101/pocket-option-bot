@@ -1,32 +1,153 @@
-from flask import Flask
-from telegram.ext import CommandHandler, Dispatcher, Updater
+from flask import Flask, request
+from telegram.ext import CommandHandler, Updater
+from telegram import ReplyKeyboardMarkup
 import threading
+import yfinance as yf
+import pandas as pd
+import time
 
 TOKEN = "7781796905:AAG5qRJ4w2VTEyISAkmtE3bUILTAo9s-9xc"
+
 app = Flask(__name__)
 
-def start(update, context):
-    context.bot.send_message(
-        chat_id=update.effective_chat.id,
-        text=(
-            "Привіт! Я твій бот для трейдингу на Pocket Option.\n\n"
-            "📈 Даю сигнали з точним входом\n"
-            "⏱️ Аналізую старші таймфрейми\n"
-            "⚙️ Працюю на індикаторах і свічкових патернах\n"
-            "✅ Автоматичний режим — чекай сигналів!"
+# Глобальні змінні
+selected_pairs = ["EURUSD=X"]
+analyzing = False
+last_signal = {}
+
+pairs_list = {
+    "EUR/USD": "EURUSD=X",
+    "GBP/USD": "GBPUSD=X",
+    "USD/JPY": "USDJPY=X",
+    "AUD/USD": "AUDUSD=X",
+    "USD/CAD": "USDCAD=X",
+    "EUR/JPY": "EURJPY=X",
+    "GBP/JPY": "GBPJPY=X",
+    "EUR/GBP": "EURGBP=X",
+    "NZD/USD": "NZDUSD=X",
+    "USD/CHF": "USDCHF=X"
+}
+
+def get_signal(ticker):
+    try:
+        data = yf.download(tickers=ticker, period="2d", interval="5m")
+        if data.empty:
+            return None
+        
+        close = data["Close"]
+        ema50 = close.ewm(span=50).mean()
+        ema200 = close.ewm(span=200).mean()
+        rsi = compute_rsi(close)
+        
+        latest_close = close.iloc[-1]
+        latest_ema50 = ema50.iloc[-1]
+        latest_ema200 = ema200.iloc[-1]
+        latest_rsi = rsi.iloc[-1]
+
+        stochastic_signal = compute_stochastic(data)
+        
+        conditions_up = (
+            latest_rsi < 30 and
+            latest_close > latest_ema50 and
+            stochastic_signal == "bullish"
         )
-    )
+
+        conditions_down = (
+            latest_rsi > 70 and
+            latest_close < latest_ema50 and
+            stochastic_signal == "bearish"
+        )
+
+        if conditions_up:
+            return "UP", round(latest_rsi, 1)
+        elif conditions_down:
+            return "DOWN", round(latest_rsi, 1)
+        else:
+            return None
+    except Exception as e:
+        print(f"Error getting signal: {e}")
+        return None
+
+def compute_rsi(series, period=14):
+    delta = series.diff()
+    up = delta.clip(lower=0)
+    down = -1 * delta.clip(upper=0)
+    ema_up = up.ewm(com=period-1, adjust=False).mean()
+    ema_down = down.ewm(com=period-1, adjust=False).mean()
+    rs = ema_up / ema_down
+    return 100 - (100 / (1 + rs))
+
+def compute_stochastic(data, k_period=14, d_period=3):
+    low_min = data["Low"].rolling(window=k_period).min()
+    high_max = data["High"].rolling(window=k_period).max()
+    stoch_k = 100 * (data["Close"] - low_min) / (high_max - low_min)
+    stoch_d = stoch_k.rolling(window=d_period).mean()
+    
+    if stoch_k.iloc[-2] < stoch_d.iloc[-2] and stoch_k.iloc[-1] > stoch_d.iloc[-1]:
+        return "bullish"
+    elif stoch_k.iloc[-2] > stoch_d.iloc[-2] and stoch_k.iloc[-1] < stoch_d.iloc[-1]:
+        return "bearish"
+    else:
+        return None
+
+def analyze(context):
+    global last_signal
+    for pair in selected_pairs:
+        signal = get_signal(pair)
+        if signal:
+            direction, rsi_value = signal
+            pair_name = [k for k, v in pairs_list.items() if v == pair][0]
+            if last_signal.get(pair) != direction:
+                context.bot.send_message(
+                    chat_id=context.job.context,
+                    text=f"{pair_name} — ВХІД {direction} на 15 хв\nRSI: {rsi_value} | Підтвердження EMA | Stochastic OK\nЧас: {time.strftime('%H:%M')}"
+                )
+                last_signal[pair] = direction
+
+def start(update, context):
+    update.message.reply_text("Привіт! Я твій бот для автоматичних сигналів. Вибери валютні пари командою /pairs")
+
+def pairs(update, context):
+    keyboard = [[pair] for pair in pairs_list.keys()]
+    markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+    update.message.reply_text("Вибери валютні пари для аналізу:", reply_markup=markup)
+
+def pair_selected(update, context):
+    global selected_pairs
+    text = update.message.text
+    if text in pairs_list:
+        selected_pairs = [pairs_list[text]]
+        update.message.reply_text(f"Пара {text} вибрана для аналізу!")
+
+def turn_on(update, context):
+    global analyzing
+    if not analyzing:
+        analyzing = True
+        context.job_queue.run_repeating(analyze, interval=300, first=1, context=update.message.chat_id)
+        update.message.reply_text("Аналіз увімкнено! Сигнали почнуть надходити.")
+
+def turn_off(update, context):
+    global analyzing
+    analyzing = False
+    context.job_queue.stop()
+    update.message.reply_text("Аналіз вимкнено.")
+
+updater = Updater(token=TOKEN, use_context=True)
+dispatcher = updater.dispatcher
+
+dispatcher.add_handler(CommandHandler("start", start))
+dispatcher.add_handler(CommandHandler("pairs", pairs))
+dispatcher.add_handler(CommandHandler("on", turn_on))
+dispatcher.add_handler(CommandHandler("off", turn_off))
+dispatcher.add_handler(CommandHandler(None, pair_selected))
 
 def run_bot():
-    updater = Updater(token=TOKEN, use_context=True)
-    dp = updater.dispatcher
-    dp.add_handler(CommandHandler("start", start))
     updater.start_polling()
     updater.idle()
 
 @app.route('/')
 def home():
-    return "Бот активний!"
+    return 'Бот активний!'
 
 if __name__ == "__main__":
     threading.Thread(target=run_bot).start()
