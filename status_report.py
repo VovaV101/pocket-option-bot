@@ -1,5 +1,4 @@
 from config import pairs_list, selected_pairs, analyzing, last_signal_time
-
 def status(update, context):
     msg = "Статус бота:\n"
     msg += f"Обрані пари: {', '.join([k for k, v in pairs_list.items() if v in selected_pairs])}\n"
