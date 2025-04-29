@@ -1,28 +1,37 @@
 from flask import Flask
-import threading
 import telegram
-import time
+from telegram.ext import CommandHandler, Dispatcher, Updater
+import threading
 
 TOKEN = "7713898071:AAG9Xe23F_pqR4dGKeWFtJw-_h6Ke62wrLk"
-CHAT_ID = "7653693089"
-
 bot = telegram.Bot(token=TOKEN)
 app = Flask(__name__)
 
-def send_loop():
-    while True:
-        try:
-            bot.send_message(chat_id=CHAT_ID, text="Бот працює!")
-            time.sleep(3600)
-        except Exception as e:
-            print(f"Error: {e}")
-            time.sleep(10)
+def start(update, context):
+    context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=(
+            "Привіт! Я твій особистий бот для трейдингу.\n\n"
+            "📈 Даю точні сигнали для входу на Pocket Option\n"
+            "⏱️ Аналізую ринок на старших таймфреймах\n"
+            "⚙️ Сигнали формуються на основі індикаторів та патернів\n"
+            "🛠️ Працюю автоматично 24/7\n\n"
+            "Чекай на сигнали — скоро буде перший!"
+        )
+    )
 
-@app.route("/")
+def run_bot():
+    updater = Updater(token=TOKEN, use_context=True)
+    dispatcher = updater.dispatcher
+    dispatcher.add_handler(CommandHandler('start', start))
+    updater.start_polling()
+    updater.idle()
+
+@app.route('/')
 def home():
-    return "Bot is running!"
+    return "Бот працює!"
 
 if __name__ == "__main__":
-    t = threading.Thread(target=send_loop)
+    t = threading.Thread(target=run_bot)
     t.start()
-    app.run(host="0.0.0.0", port=8000)
+    app.run(host='0.0.0.0', port=8000)
