@@ -5,7 +5,7 @@ import yfinance as yf
 import pandas as pd
 import time
 
-TOKEN = "7781796905:AAGbeuu5lcfWUAPgJzI6JAL5fQRyVHveowI"
+TOKEN = "7781796905:AAEchvqzzV8cfs9Yg0x36-UqeQ8pAA0mfVA"
 
 app = Flask(__name__)
 
