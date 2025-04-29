@@ -103,7 +103,7 @@ def analyze(context):
                     chat_id=context.job.context,
                     text=f"{pair_name} — ВХІД {direction} на 15 хв"
 RSI: {rsi_value} | Підтвердження EMA | Stochastic OK
-Час: {time.strftime('%H:%M')}"
+Час: "{time.strftime('%H:%M')}"
                 )
                 last_signal[pair] = direction
 
