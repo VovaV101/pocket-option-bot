@@ -1,18 +1,19 @@
+import os
+import logging
 from flask import Flask
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
-    CommandHandler,
     Updater,
-    CallbackContext,
+    CommandHandler,
     MessageHandler,
-    Filters
+    Filters,
+    CallbackContext
 )
 from config import selected_pairs, analyzing, last_signal, last_signal_time, pairs_list
 from status_report import status
 import yfinance as yf
 import pandas as pd
 import time
-import os
 from dotenv import load_dotenv
 
 # Завантаження токена
@@ -152,5 +153,9 @@ def home():
 
 # Запуск бота
 if __name__ == "__main__":
-    updater.start_polling()
-    app.run(host="0.0.0.0", port=8000)
+    try:
+        print("Starting bot polling...")
+        updater.start_polling()
+        app.run(host='0.0.0.0', port=8080)
+    except Exception as e:
+        print(f"Bot already running or failed to start: {e}")
