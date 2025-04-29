@@ -1,33 +1,16 @@
 from flask import Flask
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import CommandHandler, Updater, CallbackContext, MessageHandler, Filters
+from config import selected_pairs, analyzing, last_signal, last_signal_time, pairs_list
+from status_report import status
 import yfinance as yf
 import pandas as pd
 import time
 
-TOKEN = "7781796905:AAEchvqzzV8cfs9Yg0x36-UqeQ8pAA0mfVA"
+TOKEN = "7781796905:AAGbeuu5lcfWUAPgJzI6JAL5fQRyVHveowI"
 
 app = Flask(__name__)
-
-# Глобальні змінні
-selected_pairs = ["EURUSD=X"]
-analyzing = False
-last_signal = {}
 job_reference = None
-
-pairs_list = {
-    "EUR/USD": "EURUSD=X",
-    "GBP/USD": "GBPUSD=X",
-    "USD/JPY": "USDJPY=X",
-    "AUD/USD": "AUDUSD=X",
-    "USD/CAD": "USDCAD=X",
-    "EUR/JPY": "EURJPY=X",
-    "GBP/JPY": "GBPJPY=X",
-    "EUR/GBP": "EURGBP=X",
-    "NZD/USD": "NZDUSD=X",
-    "USD/CHF": "USDCHF=X"
-}
-
 
 def get_signal(ticker):
     try:
@@ -68,16 +51,14 @@ def get_signal(ticker):
         print(f"Error getting signal: {e}")
         return None
 
-
 def compute_rsi(series, period=14):
     delta = series.diff()
     up = delta.clip(lower=0)
     down = -1 * delta.clip(upper=0)
-    ema_up = up.ewm(com=period - 1, adjust=False).mean()
-    ema_down = down.ewm(com=period - 1, adjust=False).mean()
+    ema_up = up.ewm(span=period, adjust=False).mean()
+    ema_down = down.ewm(span=period, adjust=False).mean()
     rs = ema_up / ema_down
     return 100 - (100 / (1 + rs))
-
 
 def compute_stochastic(data, k_period=14, d_period=3):
     low_min = data["Low"].rolling(window=k_period).min()
@@ -91,7 +72,6 @@ def compute_stochastic(data, k_period=14, d_period=3):
         return "bearish"
     else:
         return None
-
 
 def analyze_job(context: CallbackContext):
     global last_signal
@@ -108,17 +88,15 @@ def analyze_job(context: CallbackContext):
                          f"Час: {time.strftime('%H:%M')}"
                 )
                 last_signal[pair] = direction
-
+                last_signal_time[pair] = time.strftime('%H:%M:%S')
 
 def start(update: Update, context: CallbackContext):
     update.message.reply_text("Привіт! Я твій бот для автоматичних сигналів. Вибери валютні пари командою /pairs")
-
 
 def pairs(update: Update, context: CallbackContext):
     keyboard = [[pair] for pair in pairs_list.keys()]
     markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
     update.message.reply_text("Вибери валютні пари для аналізу:", reply_markup=markup)
-
 
 def pair_selected(update: Update, context: CallbackContext):
     global selected_pairs
@@ -127,14 +105,12 @@ def pair_selected(update: Update, context: CallbackContext):
         selected_pairs = [pairs_list[text]]
         update.message.reply_text(f"Пара {text} вибрана для аналізу!")
 
-
 def turn_on(update: Update, context: CallbackContext):
     global analyzing, job_reference
     if not analyzing:
         analyzing = True
         job_reference = context.job_queue.run_repeating(analyze_job, interval=300, first=1, context=update.message.chat_id)
         update.message.reply_text("Аналіз увімкнено! Сигнали почнуть надходити.")
-
 
 def turn_off(update: Update, context: CallbackContext):
     global analyzing, job_reference
@@ -145,7 +121,6 @@ def turn_off(update: Update, context: CallbackContext):
     else:
         update.message.reply_text("Аналіз вже вимкнений або ще не запускався.")
 
-
 updater = Updater(token=TOKEN, use_context=True)
 dispatcher = updater.dispatcher
 
@@ -153,6 +128,7 @@ dispatcher.add_handler(CommandHandler("start", start))
 dispatcher.add_handler(CommandHandler("pairs", pairs))
 dispatcher.add_handler(CommandHandler("on", turn_on))
 dispatcher.add_handler(CommandHandler("off", turn_off))
+dispatcher.add_handler(CommandHandler("status", status))
 dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, pair_selected))
 
 @app.route('/')
