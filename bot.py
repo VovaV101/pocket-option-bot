@@ -101,9 +101,7 @@ def analyze(context):
             if last_signal.get(pair) != direction:
                 context.bot.send_message(
                     chat_id=context.job.context,
-                    text=f"{pair_name} — ВХІД {direction} на 15 хв"
-RSI: {rsi_value} | Підтвердження EMA | Stochastic OK
-Час: "{time.strftime('%H:%M')}"
+                    text=f"{pair_name} — ВХІД {direction} на 15 хв\nRSI: {rsi_value} | Підтвердження EMA | Stochastic OK\nЧас: {time.strftime('%H:%M')}"
                 )
                 last_signal[pair] = direction
 
