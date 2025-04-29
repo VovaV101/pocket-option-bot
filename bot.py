@@ -1,6 +1,12 @@
 from flask import Flask
 from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import CommandHandler, Updater, CallbackContext, MessageHandler, Filters
+from telegram.ext import (
+    CommandHandler,
+    Updater,
+    CallbackContext,
+    MessageHandler,
+    Filters
+)
 from config import selected_pairs, analyzing, last_signal, last_signal_time, pairs_list
 from status_report import status
 import yfinance as yf
@@ -9,11 +15,14 @@ import time
 import os
 from dotenv import load_dotenv
 
-# Завантаження токена із змінних середовища
+# Завантаження токена
 load_dotenv()
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 
+# Ініціалізація Flask
 app = Flask(__name__)
+
+# Глобальні змінні
 job_reference = None
 
 def get_signal(ticker):
@@ -67,7 +76,7 @@ def compute_rsi(series, period=14):
 def compute_stochastic(data, k_period=14, d_period=3):
     low_min = data["Low"].rolling(window=k_period).min()
     high_max = data["High"].rolling(window=k_period).max()
-    stoch_k = 100 * (data["Close"] - low_min) / (high_max - low_min)
+    stoch_k = 100 * ((data["Close"] - low_min) / (high_max - low_min))
     stoch_d = stoch_k.rolling(window=d_period).mean()
 
     if stoch_k.iloc[-2] < stoch_d.iloc[-2] and stoch_k.iloc[-1] > stoch_d.iloc[-1]:
@@ -87,9 +96,9 @@ def analyze_job(context: CallbackContext):
             if last_signal.get(pair) != direction:
                 context.bot.send_message(
                     chat_id=context.job.context,
-                    text=f"{pair_name} — ВХІД {direction} на 15 хв\n"
+                    text=f"{pair_name} ВХІД {direction} на 15 хв\n"
                          f"RSI: {rsi_value} | Підтвердження EMA | Stochastic OK\n"
-                         f"Час: {time.strftime('%H:%M')}"
+                         f"Час: {time.strftime('%H:%M:%S')}"
                 )
                 last_signal[pair] = direction
                 last_signal_time[pair] = time.strftime('%H:%M:%S')
@@ -105,9 +114,8 @@ def pairs(update: Update, context: CallbackContext):
 def pair_selected(update: Update, context: CallbackContext):
     global selected_pairs
     text = update.message.text
-    if text in pairs_list:
-        selected_pairs = [pairs_list[text]]
-        update.message.reply_text(f"Пара {text} вибрана для аналізу!")
+    selected_pairs = [pairs_list[text]]
+    update.message.reply_text(f"Пара {text} вибрана для аналізу!")
 
 def turn_on(update: Update, context: CallbackContext):
     global analyzing, job_reference
@@ -125,20 +133,24 @@ def turn_off(update: Update, context: CallbackContext):
     else:
         update.message.reply_text("Аналіз вже вимкнений або ще не запускався.")
 
+# Ініціалізація Telegram Updater
 updater = Updater(token=TOKEN, use_context=True)
 dispatcher = updater.dispatcher
 
+# Хендлери
 dispatcher.add_handler(CommandHandler("start", start))
 dispatcher.add_handler(CommandHandler("pairs", pairs))
 dispatcher.add_handler(CommandHandler("on", turn_on))
 dispatcher.add_handler(CommandHandler("off", turn_off))
 dispatcher.add_handler(CommandHandler("status", status))
-dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, pair_selected))
+dispatcher.add_handler(MessageHandler(Filters.text & Filters.command, pair_selected))
 
-@app.route('/')
+# Flask маршрут для перевірки
+@app.route("/")
 def home():
-    return 'Бот активний!'
+    return "БОТ АКТИВНИЙ"
 
+# Запуск бота
 if __name__ == "__main__":
     updater.start_polling()
     app.run(host="0.0.0.0", port=8000)
