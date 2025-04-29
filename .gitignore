@@ -1,0 +1,38 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Caches
+.cache/
+*.log
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# Environment files
+.env
+*.env
+.env.*
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Jupyter / Colab
+.ipynb_checkpoints/
+
+# VSCode / IDE settings
+.vscode/
+.idea/
+
+# PyInstaller
+*.spec
+
+# Runtime files
+*.sqlite
+*.db
+*.pkl
+*.pid
