@@ -2,18 +2,18 @@ from flask import Flask
 from telegram.ext import CommandHandler, Dispatcher, Updater
 import threading
 
-TOKEN = "7713898071:AAG9Xe23F_pqR4dGKeWFtJw-_h6Ke62wrLk"
+TOKEN = "7781796905:AAG5qRJ4w2VTEyISAkmtE3bUILTAo9s-9xc"
 app = Flask(__name__)
 
 def start(update, context):
     context.bot.send_message(
         chat_id=update.effective_chat.id,
         text=(
-            "Привіт! Я твій особистий бот для трейдингу.\n\n"
-            "📈 Даю точні сигнали для Pocket Option\n"
+            "Привіт! Я твій бот для трейдингу на Pocket Option.\n\n"
+            "📈 Даю сигнали з точним входом\n"
             "⏱️ Аналізую старші таймфрейми\n"
-            "⚙️ Працюю на основі індикаторів та патернів\n"
-            "✅ Працюю 24/7 — очікуй сигнали!"
+            "⚙️ Працюю на індикаторах і свічкових патернах\n"
+            "✅ Автоматичний режим — чекай сигналів!"
         )
     )
 
@@ -26,7 +26,7 @@ def run_bot():
 
 @app.route('/')
 def home():
-    return "Бот запущений!"
+    return "Бот активний!"
 
 if __name__ == "__main__":
     threading.Thread(target=run_bot).start()
