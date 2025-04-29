@@ -1,5 +1,5 @@
 from flask import Flask, request
-from telegram.ext import CommandHandler, Updater
+from telegram.ext import CommandHandler, Updater, MessageHandler, Filters
 from telegram import ReplyKeyboardMarkup
 import threading
 import yfinance as yf
@@ -143,7 +143,7 @@ dispatcher.add_handler(CommandHandler("start", start))
 dispatcher.add_handler(CommandHandler("pairs", pairs))
 dispatcher.add_handler(CommandHandler("on", turn_on))
 dispatcher.add_handler(CommandHandler("off", turn_off))
-dispatcher.add_handler(CommandHandler(None, pair_selected))
+dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, pair_selected))
 
 def run_bot():
     updater.start_polling()
