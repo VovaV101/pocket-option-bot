@@ -1,5 +1,5 @@
 from flask import Flask, request
-from telegram.ext import CommandHandler, Updater, MessageHandler, Filters
+from telegram.ext import CommandHandler, Updater
 from telegram import ReplyKeyboardMarkup
 import threading
 import yfinance as yf
@@ -14,6 +14,7 @@ app = Flask(__name__)
 selected_pairs = ["EURUSD=X"]
 analyzing = False
 last_signal = {}
+job_reference = None
 
 pairs_list = {
     "EUR/USD": "EURUSD=X",
@@ -100,7 +101,9 @@ def analyze(context):
             if last_signal.get(pair) != direction:
                 context.bot.send_message(
                     chat_id=context.job.context,
-                    text=f"{pair_name} — ВХІД {direction} на 15 хв\nRSI: {rsi_value} | Підтвердження EMA | Stochastic OK\nЧас: {time.strftime('%H:%M')}"
+                    text=f"{pair_name} — ВХІД {direction} на 15 хв
+RSI: {rsi_value} | Підтвердження EMA | Stochastic OK
+Час: {time.strftime('%H:%M')}"
                 )
                 last_signal[pair] = direction
 
@@ -120,17 +123,20 @@ def pair_selected(update, context):
         update.message.reply_text(f"Пара {text} вибрана для аналізу!")
 
 def turn_on(update, context):
-    global analyzing
+    global analyzing, job_reference
     if not analyzing:
         analyzing = True
-        context.job_queue.run_repeating(analyze, interval=300, first=1, context=update.message.chat_id)
+        job_reference = context.job_queue.run_repeating(analyze, interval=300, first=1, context=update.message.chat_id)
         update.message.reply_text("Аналіз увімкнено! Сигнали почнуть надходити.")
 
 def turn_off(update, context):
-    global analyzing
-    analyzing = False
-    context.job_queue.stop()
-    update.message.reply_text("Аналіз вимкнено.")
+    global analyzing, job_reference
+    if analyzing and job_reference:
+        job_reference.schedule_removal()
+        analyzing = False
+        update.message.reply_text("Аналіз вимкнено.")
+    else:
+        update.message.reply_text("Аналіз вже вимкнений або ще не запускався.")
 
 updater = Updater(token=TOKEN, use_context=True)
 dispatcher = updater.dispatcher
@@ -139,7 +145,7 @@ dispatcher.add_handler(CommandHandler("start", start))
 dispatcher.add_handler(CommandHandler("pairs", pairs))
 dispatcher.add_handler(CommandHandler("on", turn_on))
 dispatcher.add_handler(CommandHandler("off", turn_off))
-dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, pair_selected))
+dispatcher.add_handler(CommandHandler(None, pair_selected))
 
 def run_bot():
     updater.start_polling()
