@@ -1,22 +1,21 @@
 # config.py
 
-# Список валютних пар
+selected_pairs = []  # сюди додаються вибрані пари користувачем
+analyzing = False    # чи активний аналіз
+job_reference = None # посилання на задачу
+
+# Для контролю повторних сигналів
+last_signal = {}
+last_signal_time = {}
+
+# Валютні пари та тікери yfinance
 pairs_list = {
     "EUR/USD": "EURUSD=X",
     "GBP/USD": "GBPUSD=X",
-    "USD/JPY": "USDJPY=X",
+    "USD/JPY": "JPY=X",
+    "USD/CAD": "CAD=X",
     "AUD/USD": "AUDUSD=X",
-    "USD/CAD": "USDCAD=X",
+    "NZD/USD": "NZDUSD=X",
     "EUR/JPY": "EURJPY=X",
     "GBP/JPY": "GBPJPY=X",
-    "EUR/GBP": "EURGBP=X",
-    "NZD/USD": "NZDUSD=X",
-    "USD/CHF": "USDCHF=X"
 }
-
-# Глобальні змінні
-selected_pairs = ["EURUSD=X"]
-analyzing = False
-last_signal = {}
-last_signal_time = {}
-job_reference = None
