@@ -1,27 +1,26 @@
 import os
 import time
-import threading
 import pandas as pd
 import yfinance as yf
-from flask import Flask
-from telegram import Update, ReplyKeyboardMarkup
+from flask import Flask, request
+from telegram import Bot, Update, ReplyKeyboardMarkup
 from telegram.ext import (
-    Updater, CommandHandler, MessageHandler, Filters, CallbackContext
+    Dispatcher, CommandHandler, MessageHandler, Filters, CallbackContext, JobQueue
 )
-from dotenv import load_dotenv
 from config import selected_pairs, analyzing, last_signal, last_signal_time, pairs_list
 from status_report import status
 
-# Завантаження токена з оточення
-load_dotenv()
-TOKEN = os.getenv("TELEGRAM_TOKEN")
+# Отримуємо змінні середовища з Render
+TOKEN = os.environ["TELEGRAM_TOKEN"]
+WEBHOOK_URL = os.environ["WEBHOOK_URL"]
 
-# Flask сервер для Render
+# Ініціалізація Flask
 app = Flask(__name__)
-
-@app.route("/")
-def home():
-    return "Бот працює (Render Web Service)"
+bot = Bot(token=TOKEN)
+dispatcher = Dispatcher(bot, None, workers=4, use_context=True)
+job_queue = JobQueue()
+job_queue.set_dispatcher(dispatcher)
+job_queue.start()
 
 # === Індикатори ===
 def compute_rsi(series, period=14):
@@ -74,7 +73,7 @@ def analyze_job(context: CallbackContext):
             direction, rsi_value = signal
             pair_name = [k for k, v in pairs_list.items() if v == pair][0]
             if last_signal.get(pair) != direction:
-                context.bot.send_message(
+                bot.send_message(
                     chat_id=context.job.context,
                     text=f"{pair_name} ВХІД {direction} на 15 хв\n"
                          f"RSI: {rsi_value} | EMA підтверджено | Stochastic OK\n"
@@ -103,7 +102,7 @@ def turn_on(update: Update, context: CallbackContext):
     global analyzing, job_reference
     if not analyzing:
         analyzing = True
-        job_reference = context.job_queue.run_repeating(analyze_job, interval=300, first=1, context=update.message.chat_id)
+        job_reference = job_queue.run_repeating(analyze_job, interval=300, first=1, context=update.message.chat_id)
         update.message.reply_text("Аналіз увімкнено!")
     else:
         update.message.reply_text("Аналіз уже працює.")
@@ -117,21 +116,26 @@ def turn_off(update: Update, context: CallbackContext):
     else:
         update.message.reply_text("Аналіз вже не активний.")
 
-def run_bot():
-    updater = Updater(token=TOKEN, use_context=True)
-    dp = updater.dispatcher
+# === Реєстрація команд ===
+dispatcher.add_handler(CommandHandler("start", start))
+dispatcher.add_handler(CommandHandler("pairs", pairs))
+dispatcher.add_handler(CommandHandler("on", turn_on))
+dispatcher.add_handler(CommandHandler("off", turn_off))
+dispatcher.add_handler(CommandHandler("status", status))
+dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, pair_selected))
 
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CommandHandler("pairs", pairs))
-    dp.add_handler(CommandHandler("on", turn_on))
-    dp.add_handler(CommandHandler("off", turn_off))
-    dp.add_handler(CommandHandler("status", status))
-    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, pair_selected))
+# === Webhook для Telegram ===
+@app.route(f"/{TOKEN}", methods=["POST"])
+def webhook():
+    update = Update.de_json(request.get_json(force=True), bot)
+    dispatcher.process_update(update)
+    return "ok", 200
 
-    updater.start_polling()
-    updater.idle()
+@app.route("/")
+def index():
+    return "Бот активний!"
 
-# === Запуск ===
 if __name__ == "__main__":
-    threading.Thread(target=run_bot).start()
+    bot.delete_webhook()
+    bot.set_webhook(url=f"{WEBHOOK_URL}/{TOKEN}")
     app.run(host="0.0.0.0", port=8000)
