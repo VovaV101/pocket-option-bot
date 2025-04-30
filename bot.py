@@ -7,21 +7,22 @@ from telegram import Bot, Update, ReplyKeyboardMarkup
 from telegram.ext import (
     Dispatcher, CommandHandler, MessageHandler, Filters, CallbackContext, JobQueue
 )
+import threading
 from config import selected_pairs, analyzing, last_signal, last_signal_time, pairs_list
 from status_report import status
 
-# Отримуємо змінні середовища з Render
+# Змінні середовища
 TOKEN = os.environ["TELEGRAM_TOKEN"]
 WEBHOOK_URL = os.environ["WEBHOOK_URL"]
 
-# Ініціалізація Flask
+# Ініціалізація
 app = Flask(__name__)
 bot = Bot(token=TOKEN)
 dispatcher = Dispatcher(bot, None, workers=4, use_context=True)
-dispatcher.bot_data["analyzing_ref"] = lambda: analyzing
 job_queue = JobQueue()
+job_reference = None
+
 job_queue.set_dispatcher(dispatcher)
-job_queue.start()
 
 # === Індикатори ===
 def compute_rsi(series, period=14):
@@ -117,7 +118,7 @@ def turn_off(update: Update, context: CallbackContext):
     else:
         update.message.reply_text("Аналіз вже не активний.")
 
-# === Реєстрація команд ===
+# === Обробка команд ===
 dispatcher.add_handler(CommandHandler("start", start))
 dispatcher.add_handler(CommandHandler("pairs", pairs))
 dispatcher.add_handler(CommandHandler("on", turn_on))
@@ -125,7 +126,7 @@ dispatcher.add_handler(CommandHandler("off", turn_off))
 dispatcher.add_handler(CommandHandler("status", status))
 dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, pair_selected))
 
-# === Webhook для Telegram ===
+# === Webhook ===
 @app.route(f"/{TOKEN}", methods=["POST"])
 def webhook():
     update = Update.de_json(request.get_json(force=True), bot)
@@ -136,7 +137,9 @@ def webhook():
 def index():
     return "Бот активний!"
 
+# === Запуск сервера ===
 if __name__ == "__main__":
     bot.delete_webhook()
     bot.set_webhook(url=f"{WEBHOOK_URL}/{TOKEN}")
+    threading.Thread(target=job_queue.start).start()
     app.run(host="0.0.0.0", port=8000)
