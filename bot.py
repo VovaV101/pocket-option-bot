@@ -1,18 +1,27 @@
 import os
 import time
+import threading
 import pandas as pd
 import yfinance as yf
+from flask import Flask
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
-    Updater, CommandHandler, MessageHandler, Filters,
-    CallbackContext
+    Updater, CommandHandler, MessageHandler, Filters, CallbackContext
 )
 from dotenv import load_dotenv
 from config import selected_pairs, analyzing, last_signal, last_signal_time, pairs_list
 from status_report import status
 
+# Завантаження токена з оточення
 load_dotenv()
 TOKEN = os.getenv("TELEGRAM_TOKEN")
+
+# Flask сервер для Render
+app = Flask(__name__)
+
+@app.route("/")
+def home():
+    return "Бот працює (Render Web Service)"
 
 # === Індикатори ===
 def compute_rsi(series, period=14):
@@ -25,9 +34,9 @@ def compute_rsi(series, period=14):
     return 100 - (100 / (1 + rs))
 
 def compute_stochastic(data, k_period=14, d_period=3):
-    low_min = data['Low'].rolling(window=k_period).min()
-    high_max = data['High'].rolling(window=k_period).max()
-    stoch_k = 100 * ((data['Close'] - low_min) / (high_max - low_min))
+    low_min = data["Low"].rolling(window=k_period).min()
+    high_max = data["High"].rolling(window=k_period).max()
+    stoch_k = 100 * ((data["Close"] - low_min) / (high_max - low_min))
     stoch_d = stoch_k.rolling(window=d_period).mean()
     if stoch_k.iloc[-2] < stoch_d.iloc[-2] and stoch_k.iloc[-1] > stoch_d.iloc[-1]:
         return "bullish"
@@ -42,26 +51,21 @@ def get_signal(ticker):
             return None
         close = data["Close"]
         ema50 = close.ewm(span=50).mean()
-        ema200 = close.ewm(span=200).mean()
         rsi = compute_rsi(close)
         stochastic = compute_stochastic(data)
-
         latest_close = close.iloc[-1]
         latest_ema50 = ema50.iloc[-1]
-        latest_ema200 = ema200.iloc[-1]
         latest_rsi = rsi.iloc[-1]
 
         if latest_rsi < 30 and latest_close > latest_ema50 and stochastic == "bullish":
             return "UP", round(latest_rsi, 1)
         elif latest_rsi > 70 and latest_close < latest_ema50 and stochastic == "bearish":
             return "DOWN", round(latest_rsi, 1)
-        else:
-            return None
+        return None
     except Exception as e:
-        print(f"Error getting signal: {e}")
+        print(f"Error in get_signal: {e}")
         return None
 
-# === Аналізатор ===
 def analyze_job(context: CallbackContext):
     global last_signal
     for pair in selected_pairs:
@@ -72,23 +76,21 @@ def analyze_job(context: CallbackContext):
             if last_signal.get(pair) != direction:
                 context.bot.send_message(
                     chat_id=context.job.context,
-                    text=(
-                        f"{pair_name} ВХІД {direction} на 15 хв\n"
-                        f"RSI: {rsi_value} | Підтвердження EMA | Stochastic OK\n"
-                        f"Час: {time.strftime('%H:%M:%S')}"
-                    )
+                    text=f"{pair_name} ВХІД {direction} на 15 хв\n"
+                         f"RSI: {rsi_value} | EMA підтверджено | Stochastic OK\n"
+                         f"Час: {time.strftime('%H:%M:%S')}"
                 )
                 last_signal[pair] = direction
                 last_signal_time[pair] = time.strftime('%H:%M:%S')
 
-# === Telegram-хендлери ===
+# === Команди ===
 def start(update: Update, context: CallbackContext):
-    update.message.reply_text("Привіт! Я твій бот для автоматичних сигналів. Обери валютну пару та ввімкни аналіз.")
+    update.message.reply_text("Привіт! Я твій бот для сигналів. Використай /pairs щоб вибрати валюту.")
 
 def pairs(update: Update, context: CallbackContext):
     keyboard = [[pair] for pair in pairs_list.keys()]
     markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
-    update.message.reply_text("Вибери валютні пари для аналізу:", reply_markup=markup)
+    update.message.reply_text("Вибери валютні пари:", reply_markup=markup)
 
 def pair_selected(update: Update, context: CallbackContext):
     global selected_pairs
@@ -101,15 +103,10 @@ def turn_on(update: Update, context: CallbackContext):
     global analyzing, job_reference
     if not analyzing:
         analyzing = True
-        job_reference = context.job_queue.run_repeating(
-            analyze_job,
-            interval=300,
-            first=1,
-            context=update.effective_chat.id
-        )
-        update.message.reply_text("Аналіз увімкнено! Сигнали почнуть надходити.")
+        job_reference = context.job_queue.run_repeating(analyze_job, interval=300, first=1, context=update.message.chat_id)
+        update.message.reply_text("Аналіз увімкнено!")
     else:
-        update.message.reply_text("Аналіз вже увімкнений або ще не запускався.")
+        update.message.reply_text("Аналіз уже працює.")
 
 def turn_off(update: Update, context: CallbackContext):
     global analyzing, job_reference
@@ -118,18 +115,23 @@ def turn_off(update: Update, context: CallbackContext):
         analyzing = False
         update.message.reply_text("Аналіз вимкнено.")
     else:
-        update.message.reply_text("Аналіз вже вимкнений або ще не запускався.")
+        update.message.reply_text("Аналіз вже не активний.")
 
-# === Запуск бота ===
-updater = Updater(token=TOKEN, use_context=True)
-dispatcher = updater.dispatcher
+def run_bot():
+    updater = Updater(token=TOKEN, use_context=True)
+    dp = updater.dispatcher
 
-dispatcher.add_handler(CommandHandler("start", start))
-dispatcher.add_handler(CommandHandler("pairs", pairs))
-dispatcher.add_handler(CommandHandler("on", turn_on))
-dispatcher.add_handler(CommandHandler("off", turn_off))
-dispatcher.add_handler(CommandHandler("status", status))
-dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, pair_selected))
+    dp.add_handler(CommandHandler("start", start))
+    dp.add_handler(CommandHandler("pairs", pairs))
+    dp.add_handler(CommandHandler("on", turn_on))
+    dp.add_handler(CommandHandler("off", turn_off))
+    dp.add_handler(CommandHandler("status", status))
+    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, pair_selected))
 
-updater.start_polling()
-updater.idle()
+    updater.start_polling()
+    updater.idle()
+
+# === Запуск ===
+if __name__ == "__main__":
+    threading.Thread(target=run_bot).start()
+    app.run(host="0.0.0.0", port=8000)
