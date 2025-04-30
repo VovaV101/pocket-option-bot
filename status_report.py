@@ -1,15 +1,15 @@
-from config import pairs_list, selected_pairs, analyzing, last_signal_time
-def status(update, context):
-    msg = "Статус бота:\n"
-    msg += f"Обрані пари: {', '.join([k for k, v in pairs_list.items() if v in selected_pairs])}\n"
-    msg += f"Аналіз: {'увімкнено' if analyzing else 'вимкнено'}\n"
+from telegram import Update
+from telegram.ext import CallbackContext
+from config import last_signal, last_signal_time
 
-    if last_signal_time:
-        for pair in selected_pairs:
-            name = [k for k, v in pairs_list.items() if v == pair][0]
-            last_time = last_signal_time.get(pair, "немає")
-            msg += f"Останній сигнал по {name}: {last_time}\n"
-    else:
-        msg += "Сигнали ще не надходили."
+def status(update: Update, context: CallbackContext):
+    if not last_signal:
+        update.message.reply_text("Сигналів ще не було.")
+        return
 
-    update.message.reply_text(msg)
+    message = "Останні сигнали:\n"
+    for pair, signal in last_signal.items():
+        time_str = last_signal_time.get(pair, "—")
+        message += f"{pair}: {signal} о {time_str}\n"
+
+    update.message.reply_text(message)
