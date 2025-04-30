@@ -18,6 +18,7 @@ WEBHOOK_URL = os.environ["WEBHOOK_URL"]
 app = Flask(__name__)
 bot = Bot(token=TOKEN)
 dispatcher = Dispatcher(bot, None, workers=4, use_context=True)
+dispatcher.bot_data["pairs_list"] = pairs_list
 job_queue = JobQueue()
 job_queue.set_dispatcher(dispatcher)
 job_queue.start()
