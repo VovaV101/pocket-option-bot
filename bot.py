@@ -10,11 +10,11 @@ from telegram.ext import (
 from config import selected_pairs, analyzing, last_signal, last_signal_time, pairs_list
 from status_report import status
 
-# Отримуємо змінні середовища
+# Отримання токену і вебхука
 TOKEN = os.environ["TELEGRAM_TOKEN"]
 WEBHOOK_URL = os.environ["WEBHOOK_URL"]
 
-# Ініціалізація Flask
+# Ініціалізація Flask та бота
 app = Flask(__name__)
 bot = Bot(token=TOKEN)
 dispatcher = Dispatcher(bot, None, workers=4, use_context=True)
@@ -87,25 +87,23 @@ def start(update: Update, context: CallbackContext):
     update.message.reply_text("Привіт! Я твій бот для сигналів. Використай /pairs щоб вибрати валюту.")
 
 def pairs(update: Update, context: CallbackContext):
-    keyboard_text = "\n".join(pairs_list.keys())
+    available = "\n".join(pairs_list.keys())
     update.message.reply_text(
-        "Вибери валютні пари, розділивши через кому (,):\n\n" + keyboard_text
+        "Вибери одну або декілька валютних пар, розділивши через кому (,):\n\n" + available
     )
 
 def pair_selected(update: Update, context: CallbackContext):
     global selected_pairs
     text = update.message.text
-    pairs = [p.strip() for p in text.upper().split(",")]
-    selected = []
-    for pair in pairs:
-        if pair in pairs_list:
-            selected.append(pairs_list[pair])
-    if selected:
-        selected_pairs.clear()
-        selected_pairs.extend(selected)
-        update.message.reply_text(f"Вибрані пари для аналізу: {', '.join([k for k, v in pairs_list.items() if v in selected_pairs])}")
+    inputs = [pair.strip().upper() for pair in text.split(",")]
+    selected_pairs = []
+    for p in inputs:
+        if p in pairs_list:
+            selected_pairs.append(pairs_list[p])
+    if selected_pairs:
+        update.message.reply_text(f"Вибрані пари для аналізу: {', '.join(inputs)}")
     else:
-        update.message.reply_text("Невірно введені пари. Спробуй ще раз через /pairs.")
+        update.message.reply_text("Невірно введені пари. Використай /pairs ще раз.")
 
 def turn_on(update: Update, context: CallbackContext):
     global analyzing, job_reference
@@ -113,17 +111,19 @@ def turn_on(update: Update, context: CallbackContext):
         if not analyzing:
             analyzing = True
             job_reference = job_queue.run_repeating(analyze_job, interval=300, first=1, context=update.message.chat_id)
+            context.bot_data["analyzing_ref"] = lambda: True
             update.message.reply_text("Аналіз увімкнено!")
         else:
             update.message.reply_text("Аналіз уже працює.")
     else:
-        update.message.reply_text("Спочатку вибери валютні пари командою /pairs.")
+        update.message.reply_text("Спочатку вибери валютні пари через /pairs.")
 
 def turn_off(update: Update, context: CallbackContext):
     global analyzing, job_reference
     if analyzing and job_reference:
         job_reference.schedule_removal()
         analyzing = False
+        context.bot_data["analyzing_ref"] = lambda: False
         update.message.reply_text("Аналіз вимкнено.")
     else:
         update.message.reply_text("Аналіз вже не активний.")
