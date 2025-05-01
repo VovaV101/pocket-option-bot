@@ -1,7 +1,7 @@
 import time
+from telegram import Bot
 from indicators import get_signal
 from config import selected_pairs, last_signal, last_signal_time
-from telegram import Bot
 
 def analyze_job(context):
     bot: Bot = context.bot
@@ -14,7 +14,8 @@ def analyze_job(context):
                 bot.send_message(
                     chat_id=context.job.context,
                     text=f"{pair} ВХІД {direction} на 15 хвилин\n"
-                         f"RSI: {rsi_value} | EMA підтверджено | Stochastic+MACD+BB підтверджено\n"
+                         f"RSI: {rsi_value} | EMA підтверджено | "
+                         f"Stochastic, MACD, Bollinger Bands підтверджено\n"
                          f"Час: {time.strftime('%H:%M:%S')}"
                 )
                 last_signal[pair] = direction
