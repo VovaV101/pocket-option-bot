@@ -1,67 +1,37 @@
 import yfinance as yf
-from indicators import compute_rsi, compute_stochastic, compute_ema
+from config import TIMEFRAME_MINUTES
 
-# Таймфрейми для аналізу
-HIGHER_TIMEFRAME = "1h"   # старший таймфрейм
-LOWER_TIMEFRAME = "5m"    # молодший таймфрейм
-
-# Угода на 3 свічки (тобто 15 хвилин на 5-хвилинному таймфреймі)
-TRADE_DURATION_MINUTES = 15
-
-def analyze(pair: str, bot, chat_id: int):
+def get_signal(pair: str):
     try:
-        # Завантажуємо дані для старшого таймфрейму
-        higher_data = yf.download(tickers=pair, interval=HIGHER_TIMEFRAME, period="2d", progress=False)
+        data = yf.download(
+            tickers=pair,
+            interval=f"{TIMEFRAME_MINUTES}m",
+            period="2d",
+            progress=False,
+            threads=False
+        )
 
-        if higher_data.empty:
-            bot.send_message(chat_id=chat_id, text=f"Не вдалося отримати дані для {pair} на {HIGHER_TIMEFRAME}.")
-            return
+        if data.empty or len(data) < 10:
+            return None  # Недостатньо даних
 
-        # Розрахунок індикаторів для старшого таймфрейму
-        higher_rsi = compute_rsi(higher_data)
-        higher_stochastic = compute_stochastic(higher_data)
-        higher_ema = compute_ema(higher_data)
+        # Старший таймфрейм (наприклад 15 хв)
+        senior = data.iloc[-10:-5]
+        # Молодший таймфрейм (останні 5 свічок)
+        junior = data.iloc[-5:]
 
-        # Визначаємо загальний тренд на старшому таймфреймі
-        trend = None
-        if higher_rsi[-1] > 50 and higher_data["Close"].iloc[-1] > higher_ema[-1]:
-            trend = "up"
-        elif higher_rsi[-1] < 50 and higher_data["Close"].iloc[-1] < higher_ema[-1]:
-            trend = "down"
+        # Простий приклад логіки:
+        senior_trend_up = senior['Close'].mean() > senior['Open'].mean()
+        senior_trend_down = senior['Close'].mean() < senior['Open'].mean()
 
-        if not trend:
-            # Якщо тренд невизначений — не надсилаємо сигнал
-            return
+        junior_breakout_up = junior.iloc[-1]['Close'] > junior['High'].max()
+        junior_breakout_down = junior.iloc[-1]['Close'] < junior['Low'].min()
 
-        # Завантажуємо дані для молодшого таймфрейму
-        lower_data = yf.download(tickers=pair, interval=LOWER_TIMEFRAME, period="1d", progress=False)
-
-        if lower_data.empty:
-            bot.send_message(chat_id=chat_id, text=f"Не вдалося отримати дані для {pair} на {LOWER_TIMEFRAME}.")
-            return
-
-        # Розрахунок індикаторів для молодшого таймфрейму
-        lower_rsi = compute_rsi(lower_data)
-        lower_stochastic = compute_stochastic(lower_data)
-
-        # Шукаємо точку входу на молодшому таймфреймі відповідно до тренду
-        signal = None
-        if trend == "up":
-            if lower_rsi[-1] > 50 and lower_stochastic[-1] < 80:
-                signal = "UP"
-        elif trend == "down":
-            if lower_rsi[-1] < 50 and lower_stochastic[-1] > 20:
-                signal = "DOWN"
-
-        if signal:
-            message = (
-                f"📈 Сигнал для {pair}:\n"
-                f"➡️ Вхід: {signal}\n"
-                f"➡️ Час угоди: {TRADE_DURATION_MINUTES} хвилин\n"
-                f"➡️ За трендом: {trend.upper()} таймфрейм {HIGHER_TIMEFRAME}\n"
-                f"➡️ Перевірено по {LOWER_TIMEFRAME}"
-            )
-            bot.send_message(chat_id=chat_id, text=message)
-
+        if senior_trend_up and junior_breakout_up:
+            return f"Сигнал для {pair}: Купувати на {TIMEFRAME_MINUTES * 3} хвилин ✅"
+        elif senior_trend_down and junior_breakout_down:
+            return f"Сигнал для {pair}: Продавати на {TIMEFRAME_MINUTES * 3} хвилин ❌"
+        else:
+            return None  # Немає чіткого сигналу
     except Exception as e:
-        bot.send_message(chat_id=chat_id, text=f"Помилка аналізу для {pair}: {str(e)}")
+        print(f"Помилка при отриманні сигналу для {pair}: {e}")
+        return None
