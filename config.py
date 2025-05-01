@@ -17,3 +17,13 @@ AVAILABLE_PAIRS = [
     "EUR/USD", "GBP/USD", "USD/JPY", "USD/CAD",
     "AUD/USD", "NZD/USD", "EUR/JPY", "GBP/JPY"
 ]
+pairs_list = [
+    "EUR/USD",
+    "GBP/USD",
+    "USD/JPY",
+    "USD/CAD",
+    "AUD/USD",
+    "NZD/USD",
+    "EUR/JPY",
+    "GBP/JPY"
+]
