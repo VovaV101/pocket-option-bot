@@ -1,6 +1,7 @@
-# config.py
+# Обрані пари для аналізу
+selected_pairs = []
 
-# Валютні пари доступні для аналізу
+# Список доступних валютних пар
 pairs_list = {
     "EUR/USD": "EURUSD=X",
     "GBP/USD": "GBPUSD=X",
@@ -14,8 +15,8 @@ pairs_list = {
     "USD/CHF": "USDCHF=X"
 }
 
-# Глобальні змінні
-selected_pairs = []
+# Стан аналізу
 analyzing = False
-last_signal = {}
-last_signal_time = {}
+
+# Таймфрейм аналізу в хвилинах
+TIMEFRAME_MINUTES = 5
