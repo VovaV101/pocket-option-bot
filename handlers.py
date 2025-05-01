@@ -1,48 +1,44 @@
 from telegram import Update
 from telegram.ext import CallbackContext
-from signals import analyze_job
+from config import pairs_list, pair_selected_list, TIMEFRAME_MINUTES
+from signals import get_signal
 
-# Стан бота: чи запущений аналіз
-analysis_active = False
+selected_pairs = []
 
-def start(update: Update, context: CallbackContext) -> None:
+def start(update: Update, context: CallbackContext):
     update.message.reply_text(
         "Привіт! Я твій бот для торгових сигналів.\nЩоб вибрати валютні пари — напиши /pairs."
     )
 
-def pairs(update: Update, context: CallbackContext) -> None:
-    pairs_list = [
-        "EUR/USD", "GBP/USD", "USD/JPY", "AUD/USD", "USD/CAD",
-        "EUR/JPY", "GBP/JPY", "EUR/GBP", "NZD/USD", "USD/CHF"
-    ]
-    pairs_text = ", ".join(pairs_list)
-    update.message.reply_text(
-        f"Вибери одну або кілька валютних пар через кому:\n\n{pairs_text}"
-    )
+def pairs(update: Update, context: CallbackContext):
+    pairs_str = ", ".join(pairs_list)
+    update.message.reply_text(f"Вибери одну або кілька валютних пар:\n\n{pairs_str}")
 
-def pair_selected(update: Update, context: CallbackContext) -> None:
-    text = update.message.text.upper().replace(" ", "")
-    selected_pairs = text.split(",")
-    context.chat_data["selected_pairs"] = selected_pairs
-    update.message.reply_text(f"Вибрані пари: {', '.join(selected_pairs)}")
+def pair_selected(update: Update, context: CallbackContext):
+    global selected_pairs
+    text = update.message.text.upper()
+    selected = [pair.strip() for pair in text.split(",") if pair.strip() in pairs_list]
 
-def turn_on(update: Update, context: CallbackContext) -> None:
-    global analysis_active
-    if analysis_active:
-        update.message.reply_text("Аналіз вже активний.")
+    if selected:
+        selected_pairs = selected
+        update.message.reply_text(f"Вибрані пари: {', '.join(selected_pairs)}")
     else:
-        if context.job_queue is not None:
-            context.job_queue.run_repeating(analyze_job, interval=300, first=1, context=update.message.chat_id)
-            analysis_active = True
-            update.message.reply_text("Аналіз запущено!")
-        else:
-            update.message.reply_text("Помилка: job_queue недоступний!")
+        update.message.reply_text("Невірний формат. Спробуй ще раз.")
 
-def turn_off(update: Update, context: CallbackContext) -> None:
-    global analysis_active
-    if analysis_active:
-        context.job_queue.stop()
-        analysis_active = False
-        update.message.reply_text("Аналіз зупинено!")
-    else:
-        update.message.reply_text("Аналіз і так неактивний.")
+def run_analysis(context: CallbackContext):
+    for pair in selected_pairs:
+        signal = get_signal(pair)
+        if signal:
+            context.bot.send_message(chat_id=context.job.chat_id, text=signal)
+
+def turn_on(update: Update, context: CallbackContext):
+    if not selected_pairs:
+        update.message.reply_text("Спочатку вибери валютні пари командою /pairs.")
+        return
+
+    context.job_queue.run_repeating(run_analysis, interval=TIMEFRAME_MINUTES * 60, first=1, chat_id=update.effective_chat.id)
+    update.message.reply_text("Аналіз запущено.")
+
+def turn_off(update: Update, context: CallbackContext):
+    context.job_queue.stop()
+    update.message.reply_text("Аналіз зупинено.")
