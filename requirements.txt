@@ -3,3 +3,4 @@ flask
 pandas
 yfinance
 python-dotenv
+ta
