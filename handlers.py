@@ -1,75 +1,48 @@
 from telegram import Update
 from telegram.ext import CallbackContext
-from signals import get_signal
-from config import pairs_list, TIMEFRAME_MINUTES
+from signals import analyze_job
 
-# Глобальний прапор для контролю
-is_running = False
+# Стан бота: чи запущений аналіз
+analysis_active = False
 
-def start(update: Update, context: CallbackContext):
+def start(update: Update, context: CallbackContext) -> None:
     update.message.reply_text(
-        "Привіт! Я твій бот для торгових сигналів.\n"
-        "Щоб вибрати валютні пари — напиши /pairs."
+        "Привіт! Я твій бот для торгових сигналів.\nЩоб вибрати валютні пари — напиши /pairs."
     )
 
-def pairs(update: Update, context: CallbackContext):
-    available_pairs = ", ".join(pairs_list)
+def pairs(update: Update, context: CallbackContext) -> None:
+    pairs_list = [
+        "EUR/USD", "GBP/USD", "USD/JPY", "AUD/USD", "USD/CAD",
+        "EUR/JPY", "GBP/JPY", "EUR/GBP", "NZD/USD", "USD/CHF"
+    ]
+    pairs_text = ", ".join(pairs_list)
     update.message.reply_text(
-        f"Вибери одну або кілька валютних пар через кому:\n\n{available_pairs}"
+        f"Вибери одну або кілька валютних пар через кому:\n\n{pairs_text}"
     )
 
-def pair_selected(update: Update, context: CallbackContext):
+def pair_selected(update: Update, context: CallbackContext) -> None:
     text = update.message.text.upper().replace(" ", "")
-    selected = text.split(",")
-    valid = [p for p in selected if p in pairs_list]
-    if valid:
-        context.user_data["selected_pairs"] = valid
-        update.message.reply_text(f"Вибрані пари: {', '.join(valid)}")
+    selected_pairs = text.split(",")
+    context.chat_data["selected_pairs"] = selected_pairs
+    update.message.reply_text(f"Вибрані пари: {', '.join(selected_pairs)}")
+
+def turn_on(update: Update, context: CallbackContext) -> None:
+    global analysis_active
+    if analysis_active:
+        update.message.reply_text("Аналіз вже активний.")
     else:
-        update.message.reply_text("Не знайдено валідних пар. Спробуй ще раз.")
+        if context.job_queue is not None:
+            context.job_queue.run_repeating(analyze_job, interval=300, first=1, context=update.message.chat_id)
+            analysis_active = True
+            update.message.reply_text("Аналіз запущено!")
+        else:
+            update.message.reply_text("Помилка: job_queue недоступний!")
 
-def analyze_job(context: CallbackContext):
-    job_data = context.job.context
-    chat_id = job_data["chat_id"]
-    selected_pairs = job_data["pairs"]
-
-    for pair in selected_pairs:
-        signal = get_signal(pair)
-        if signal:
-            context.bot.send_message(chat_id=chat_id, text=signal)
-
-def turn_on(update: Update, context: CallbackContext):
-    global is_running
-
-    if is_running:
-        update.message.reply_text("Аналіз уже запущено.")
-        return
-
-    if not context.user_data.get("selected_pairs"):
-        update.message.reply_text("Будь ласка, спочатку вибери пари через /pairs.")
-        return
-
-    if not hasattr(context.application, 'job_queue') or context.application.job_queue is None:
-        update.message.reply_text("Помилка: job_queue недоступний!")
-        return
-
-    context.application.job_queue.run_repeating(
-        analyze_job,
-        interval=300,  # 5 хвилин
-        first=1,
-        context={"chat_id": update.effective_chat.id, "pairs": context.user_data["selected_pairs"]}
-    )
-
-    is_running = True
-    update.message.reply_text(f"Аналіз запущено! Перевірка кожні {TIMEFRAME_MINUTES} хвилин.")
-
-def turn_off(update: Update, context: CallbackContext):
-    global is_running
-
-    if not is_running:
-        update.message.reply_text("Аналіз вже вимкнений.")
-        return
-
-    context.application.job_queue.stop()
-    is_running = False
-    update.message.reply_text("Аналіз зупинено.")
+def turn_off(update: Update, context: CallbackContext) -> None:
+    global analysis_active
+    if analysis_active:
+        context.job_queue.stop()
+        analysis_active = False
+        update.message.reply_text("Аналіз зупинено!")
+    else:
+        update.message.reply_text("Аналіз і так неактивний.")
