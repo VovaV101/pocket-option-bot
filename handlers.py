@@ -1,53 +1,62 @@
-# handlers.py
-
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import CallbackContext
-from config import pairs_list
+from config import selected_pairs, pairs_list, analyzing
 from signals import analyze
 
 def start(update: Update, context: CallbackContext):
-    update.message.reply_text(
-        "Привіт! Я бот для автоматичних сигналів.\n"
-        "Використай команду /pairs щоб вибрати валютні пари."
-    )
+    """Стартова команда."""
+    update.message.reply_text("Привіт! Я бот для торгових сигналів. Використай команду /pairs щоб обрати валютні пари.")
 
 def pairs(update: Update, context: CallbackContext):
+    """Відправка клавіатури для вибору пар."""
     keyboard = [[pair] for pair in pairs_list.keys()]
-    markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
-    update.message.reply_text(
-        "Вибери валютні пари для аналізу:\n"
-        "(Можна вибрати кілька пар через кому)",
-        reply_markup=markup
-    )
+    reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+    update.message.reply_text("Вибери одну або кілька валютних пар:", reply_markup=reply_markup)
 
 def pair_selected(update: Update, context: CallbackContext):
+    """Обробка вибору пари або кількох пар."""
+    global selected_pairs
     text = update.message.text
-    pairs = [pair.strip() for pair in text.split(",")]
-    selected = []
-    for pair in pairs:
-        if pair in pairs_list:
-            selected.append(pairs_list[pair])
+
+    if "," in text:
+        selected = [pair.strip() for pair in text.split(",") if pair.strip() in pairs_list]
+    else:
+        selected = [text.strip()] if text.strip() in pairs_list else []
 
     if selected:
-        context.bot_data["selected_pairs"] = selected
-        update.message.reply_text(f"Пари вибрані для аналізу: {', '.join(pairs)}")
+        selected_pairs.clear()
+        for sel in selected:
+            selected_pairs.append(pairs_list[sel])
+
+        update.message.reply_text(f"Вибрані пари: {', '.join(selected)}")
     else:
-        update.message.reply_text("Некоректний вибір. Використай /pairs ще раз.")
+        update.message.reply_text("Невірний вибір. Спробуй ще раз.")
 
 def turn_on(update: Update, context: CallbackContext):
-    if not context.bot_data.get("analyzing", False):
-        context.bot_data["analyzing"] = True
-        context.bot_data["job"] = context.job_queue.run_repeating(analyze, interval=300, first=1, context=update.message.chat_id)
+    """Увімкнення аналізу."""
+    global analyzing
+
+    if not analyzing:
+        analyzing = True
+        context.job_queue.run_repeating(run_analysis, interval=300, first=1, context=update.message.chat_id)
         update.message.reply_text("Аналіз увімкнено!")
     else:
-        update.message.reply_text("Аналіз вже працює.")
+        update.message.reply_text("Аналіз вже активний.")
 
 def turn_off(update: Update, context: CallbackContext):
-    if context.bot_data.get("analyzing", False):
-        job = context.bot_data.get("job")
-        if job:
-            job.schedule_removal()
-        context.bot_data["analyzing"] = False
+    """Вимкнення аналізу."""
+    global analyzing
+
+    if analyzing:
+        analyzing = False
+        context.job_queue.stop()
         update.message.reply_text("Аналіз вимкнено.")
     else:
-        update.message.reply_text("Аналіз вже вимкнений.")
+        update.message.reply_text("Аналіз і так вимкнений.")
+
+def run_analysis(context: CallbackContext):
+    """Аналіз обраних пар і надсилання сигналів."""
+    for pair in selected_pairs:
+        signal = analyze(pair)
+        if "Вхід" in signal:
+            context.bot.send_message(chat_id=context.job.context, text=signal)
