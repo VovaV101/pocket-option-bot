@@ -10,11 +10,11 @@ from telegram.ext import (
 from config import selected_pairs, analyzing, last_signal, last_signal_time, pairs_list
 from status_report import status
 
-# Змінні середовища
+# Отримуємо змінні середовища з Render
 TOKEN = os.environ["TELEGRAM_TOKEN"]
 WEBHOOK_URL = os.environ["WEBHOOK_URL"]
 
-# Flask
+# Ініціалізація Flask
 app = Flask(__name__)
 bot = Bot(token=TOKEN)
 dispatcher = Dispatcher(bot, None, workers=4, use_context=True)
@@ -87,23 +87,32 @@ def start(update: Update, context: CallbackContext):
     update.message.reply_text("Привіт! Я твій бот для сигналів. Використай /pairs щоб вибрати валюту.")
 
 def pairs(update: Update, context: CallbackContext):
-    keyboard = [[pair] for pair in pairs_list.keys()]
-    markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
-    update.message.reply_text("Вибери валютні пари:", reply_markup=markup)
+    available_pairs = ", ".join(pairs_list.keys())
+    update.message.reply_text(
+        f"Вибери валютні пари для аналізу, розділивши через кому (,):\n\n{available_pairs}"
+    )
 
 def pair_selected(update: Update, context: CallbackContext):
     global selected_pairs
     text = update.message.text
-    if text in pairs_list:
-        selected_pairs = [pairs_list[text]]
-        update.message.reply_text(f"Пара {text} вибрана для аналізу!")
+    selected = []
+
+    for item in text.split(","):
+        pair = item.strip().upper()
+        if pair in pairs_list:
+            selected.append(pairs_list[pair])
+
+    if selected:
+        selected_pairs = selected
+        update.message.reply_text(f"Вибрані пари для аналізу: {', '.join([k for k, v in pairs_list.items() if v in selected_pairs])}")
+    else:
+        update.message.reply_text("Невірний вибір. Спробуйте ще раз за допомогою команди /pairs.")
 
 def turn_on(update: Update, context: CallbackContext):
     global analyzing, job_reference
     if not analyzing:
         analyzing = True
         job_reference = job_queue.run_repeating(analyze_job, interval=300, first=1, context=update.message.chat_id)
-        context.bot_data["analyzing_ref"] = lambda: analyzing
         update.message.reply_text("Аналіз увімкнено!")
     else:
         update.message.reply_text("Аналіз уже працює.")
@@ -113,7 +122,6 @@ def turn_off(update: Update, context: CallbackContext):
     if analyzing and job_reference:
         job_reference.schedule_removal()
         analyzing = False
-        context.bot_data["analyzing_ref"] = lambda: analyzing
         update.message.reply_text("Аналіз вимкнено.")
     else:
         update.message.reply_text("Аналіз вже не активний.")
@@ -126,7 +134,7 @@ dispatcher.add_handler(CommandHandler("off", turn_off))
 dispatcher.add_handler(CommandHandler("status", status))
 dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, pair_selected))
 
-# === Webhook ===
+# === Webhook для Telegram ===
 @app.route(f"/{TOKEN}", methods=["POST"])
 def webhook():
     update = Update.de_json(request.get_json(force=True), bot)
