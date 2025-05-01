@@ -1,8 +1,18 @@
+# config.py
+
+# Список вибраних пар для аналізу
 selected_pairs = []
+
+# Статус аналізу
 analyzing = False
+
+# Останні сигнали для кожної пари
 last_signal = {}
+
+# Час останнього сигналу для кожної пари
 last_signal_time = {}
 
+# Доступні валютні пари для вибору
 pairs_list = {
     "EUR/USD": "EURUSD=X",
     "GBP/USD": "GBPUSD=X",
