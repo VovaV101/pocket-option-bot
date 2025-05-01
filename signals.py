@@ -1,38 +1,40 @@
-import pandas as pd
 import yfinance as yf
-from indicators import compute_rsi, compute_stochastic, compute_trend
+from indicators import compute_rsi, compute_stochastic, compute_ema
 from config import TIMEFRAME_MINUTES
 
 def analyze(pair: str) -> str:
-    """Повертає сигнал для входу в угоду по валютній парі."""
-    try:
-        # Завантажуємо дані
-        df = yf.download(pair, interval="5m", period="1d", progress=False)
+    """Аналізує валютну пару та повертає торговий сигнал."""
 
-        if df.empty or len(df) < 50:
-            return f"Недостатньо даних для {pair}."
+    # Завантаження даних
+    data = yf.download(pair, interval='5m', period='1d')
 
-        # Обчислення індикаторів
-        df = compute_rsi(df)
-        df = compute_stochastic(df)
-        df = compute_trend(df)
+    if data.empty:
+        return f"Не вдалося отримати дані для {pair}."
 
-        # Отримуємо значення останніх двох свічок
-        latest = df.iloc[-1]
-        previous = df.iloc[-2]
+    # Обчислення індикаторів
+    data = compute_rsi(data)
+    data = compute_stochastic(data)
+    data = compute_ema(data)
 
-        # Логіка сигналу
-        signal = None
+    # Логіка прийняття рішення
+    last = data.iloc[-1]
+    previous = data.iloc[-2]
 
-        if latest['Trend'] == 'uptrend' and latest['RSI'] > 50 and latest['Stochastic'] > 50:
-            signal = "BUY"
-        elif latest['Trend'] == 'downtrend' and latest['RSI'] < 50 and latest['Stochastic'] < 50:
-            signal = "SELL"
+    # Умови для покупки (UP)
+    if (
+        last['RSI'] > 50
+        and last['%K'] > last['%D']
+        and last['Close'] > last['EMA_50']
+    ):
+        return f"{pair}: Вхід UP на {TIMEFRAME_MINUTES} хвилин."
 
-        if signal:
-            return f"{pair}: {signal} на {TIMEFRAME_MINUTES * 3} хвилин."
-        else:
-            return f"{pair}: Сигналу немає."
+    # Умови для продажу (DOWN)
+    if (
+        last['RSI'] < 50
+        and last['%K'] < last['%D']
+        and last['Close'] < last['EMA_50']
+    ):
+        return f"{pair}: Вхід DOWN на {TIMEFRAME_MINUTES} хвилин."
 
-    except Exception as e:
-        return f"Помилка при аналізі {pair}: {e}"
+    # Якщо немає явного сигналу
+    return f"{pair}: Сигналів немає."
