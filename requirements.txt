@@ -1,6 +1,5 @@
-python-telegram-bot==20.7
-Flask==2.2.5
-requests
+python-telegram-bot==13.15
+flask
 pandas
 yfinance
 python-dotenv
