@@ -1,9 +1,9 @@
 from telegram import Update
 from telegram.ext import CallbackContext
-from signals import analyze
-from config import pairs_list
+from signals import get_signal
+from config import pairs_list, TIMEFRAME_MINUTES
 
-# Глобальний прапор для контролю статусу аналізу
+# Глобальний прапор для контролю
 is_running = False
 
 def start(update: Update, context: CallbackContext):
@@ -15,7 +15,7 @@ def start(update: Update, context: CallbackContext):
 def pairs(update: Update, context: CallbackContext):
     available_pairs = ", ".join(pairs_list)
     update.message.reply_text(
-        f"Вибери одну або кілька валютних пар:\n\n{available_pairs}"
+        f"Вибери одну або кілька валютних пар через кому:\n\n{available_pairs}"
     )
 
 def pair_selected(update: Update, context: CallbackContext):
@@ -26,17 +26,27 @@ def pair_selected(update: Update, context: CallbackContext):
         context.user_data["selected_pairs"] = valid
         update.message.reply_text(f"Вибрані пари: {', '.join(valid)}")
     else:
-        update.message.reply_text("Не знайдено жодної валідної пари. Спробуй ще раз.")
+        update.message.reply_text("Не знайдено валідних пар. Спробуй ще раз.")
+
+def analyze_job(context: CallbackContext):
+    job_data = context.job.context
+    chat_id = job_data["chat_id"]
+    selected_pairs = job_data["pairs"]
+
+    for pair in selected_pairs:
+        signal = get_signal(pair)
+        if signal:
+            context.bot.send_message(chat_id=chat_id, text=signal)
 
 def turn_on(update: Update, context: CallbackContext):
     global is_running
 
     if is_running:
-        update.message.reply_text("Аналіз уже активний.")
+        update.message.reply_text("Аналіз уже запущено.")
         return
 
     if not context.user_data.get("selected_pairs"):
-        update.message.reply_text("Будь ласка, спочатку вибери пари за допомогою /pairs.")
+        update.message.reply_text("Будь ласка, спочатку вибери пари через /pairs.")
         return
 
     if not hasattr(context.application, 'job_queue') or context.application.job_queue is None:
@@ -44,20 +54,20 @@ def turn_on(update: Update, context: CallbackContext):
         return
 
     context.application.job_queue.run_repeating(
-        analyze,
+        analyze_job,
         interval=300,  # 5 хвилин
         first=1,
         context={"chat_id": update.effective_chat.id, "pairs": context.user_data["selected_pairs"]}
     )
 
     is_running = True
-    update.message.reply_text("Аналіз запущено!")
+    update.message.reply_text(f"Аналіз запущено! Перевірка кожні {TIMEFRAME_MINUTES} хвилин.")
 
 def turn_off(update: Update, context: CallbackContext):
     global is_running
 
     if not is_running:
-        update.message.reply_text("Аналіз і так неактивний.")
+        update.message.reply_text("Аналіз вже вимкнений.")
         return
 
     context.application.job_queue.stop()
