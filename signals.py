@@ -1,39 +1,56 @@
-import yfinance as yf
+# signals.py
+
+import asyncio
+import logging
+from config import bot, TIMEFRAME_MINUTES
 from indicators import compute_rsi, compute_stochastic, compute_ema, compute_macd, compute_bollinger_bands
 
-def get_signal(ticker):
-    try:
-        data = yf.download(tickers=ticker, period="2d", interval="5m")
-        if data.empty:
-            return None
+async def analyze_job(context):
+    chat_id = context.job.chat_id
+    pairs_to_analyze = context.bot_data.get('pairs', [])
 
-        close = data["Close"]
-        ema50 = compute_ema(close, 50)
-        rsi = compute_rsi(close)
-        stochastic = compute_stochastic(data)
-        macd = compute_macd(close)
-        bollinger = compute_bollinger_bands(close)
+    if not pairs_to_analyze:
+        logging.info("Немає обраних валютних пар для аналізу.")
+        return
 
-        latest_close = close.iloc[-1]
-        latest_ema50 = ema50.iloc[-1]
-        latest_rsi = rsi.iloc[-1]
+    for pair in pairs_to_analyze:
+        logging.info(f"Аналіз пари {pair}...")
 
-        if (latest_rsi < 30 and
-            latest_close > latest_ema50 and
-            stochastic == "bullish" and
-            macd == "bullish" and
-            bollinger == "bullish"):
-            return "UP", round(latest_rsi, 1)
-        
-        elif (latest_rsi > 70 and
-              latest_close < latest_ema50 and
-              stochastic == "bearish" and
-              macd == "bearish" and
-              bollinger == "bearish"):
-            return "DOWN", round(latest_rsi, 1)
-        
-        return None
+        # Порахувати індикатори
+        rsi = compute_rsi(pair)
+        stochastic = compute_stochastic(pair)
+        ema = compute_ema(pair)
+        macd = compute_macd(pair)
+        bollinger = compute_bollinger_bands(pair)
 
-    except Exception as e:
-        print(f"Error in get_signal: {e}")
-        return None
+        # Умови для покупки
+        buy_conditions = (
+            rsi < 30 and
+            stochastic < 20 and
+            ema == 'buy' and
+            macd == 'buy' and
+            bollinger == 'buy'
+        )
+
+        # Умови для продажу
+        sell_conditions = (
+            rsi > 70 and
+            stochastic > 80 and
+            ema == 'sell' and
+            macd == 'sell' and
+            bollinger == 'sell'
+        )
+
+        # Надсилання сигналу
+        if buy_conditions:
+            await bot.send_message(
+                chat_id=chat_id,
+                text=f"📈 Купувати {pair}!\nВідкрити угоду на {TIMEFRAME_MINUTES} хвилин."
+            )
+        elif sell_conditions:
+            await bot.send_message(
+                chat_id=chat_id,
+                text=f"📉 Продавати {pair}!\nВідкрити угоду на {TIMEFRAME_MINUTES} хвилин."
+            )
+        else:
+            logging.info(f"Немає сигналу для {pair}.")
