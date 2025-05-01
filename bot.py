@@ -10,7 +10,7 @@ from telegram.ext import (
 from config import selected_pairs, analyzing, last_signal, last_signal_time, pairs_list
 from status_report import status
 
-# Отримуємо змінні середовища з Render
+# Отримуємо змінні середовища
 TOKEN = os.environ["TELEGRAM_TOKEN"]
 WEBHOOK_URL = os.environ["WEBHOOK_URL"]
 
@@ -87,35 +87,37 @@ def start(update: Update, context: CallbackContext):
     update.message.reply_text("Привіт! Я твій бот для сигналів. Використай /pairs щоб вибрати валюту.")
 
 def pairs(update: Update, context: CallbackContext):
-    available_pairs = ", ".join(pairs_list.keys())
+    keyboard_text = "\n".join(pairs_list.keys())
     update.message.reply_text(
-        f"Вибери валютні пари для аналізу, розділивши через кому (,):\n\n{available_pairs}"
+        "Вибери валютні пари, розділивши через кому (,):\n\n" + keyboard_text
     )
 
 def pair_selected(update: Update, context: CallbackContext):
     global selected_pairs
     text = update.message.text
+    pairs = [p.strip() for p in text.upper().split(",")]
     selected = []
-
-    for item in text.split(","):
-        pair = item.strip().upper()
+    for pair in pairs:
         if pair in pairs_list:
             selected.append(pairs_list[pair])
-
     if selected:
-        selected_pairs = selected
+        selected_pairs.clear()
+        selected_pairs.extend(selected)
         update.message.reply_text(f"Вибрані пари для аналізу: {', '.join([k for k, v in pairs_list.items() if v in selected_pairs])}")
     else:
-        update.message.reply_text("Невірний вибір. Спробуйте ще раз за допомогою команди /pairs.")
+        update.message.reply_text("Невірно введені пари. Спробуй ще раз через /pairs.")
 
 def turn_on(update: Update, context: CallbackContext):
     global analyzing, job_reference
-    if not analyzing:
-        analyzing = True
-        job_reference = job_queue.run_repeating(analyze_job, interval=300, first=1, context=update.message.chat_id)
-        update.message.reply_text("Аналіз увімкнено!")
+    if selected_pairs:
+        if not analyzing:
+            analyzing = True
+            job_reference = job_queue.run_repeating(analyze_job, interval=300, first=1, context=update.message.chat_id)
+            update.message.reply_text("Аналіз увімкнено!")
+        else:
+            update.message.reply_text("Аналіз уже працює.")
     else:
-        update.message.reply_text("Аналіз уже працює.")
+        update.message.reply_text("Спочатку вибери валютні пари командою /pairs.")
 
 def turn_off(update: Update, context: CallbackContext):
     global analyzing, job_reference
