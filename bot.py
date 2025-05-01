@@ -1,5 +1,3 @@
-# bot.py
-
 import os
 from flask import Flask, request
 from telegram import Bot, Update
@@ -16,11 +14,13 @@ WEBHOOK_URL = os.environ["WEBHOOK_URL"]
 app = Flask(__name__)
 bot = Bot(token=TOKEN)
 dispatcher = Dispatcher(bot, None, workers=4, use_context=True)
+
+# Ініціалізація JobQueue вручну
 job_queue = JobQueue()
 job_queue.set_dispatcher(dispatcher)
 job_queue.start()
 
-# Реєстрація команд
+# === Реєстрація команд ===
 dispatcher.add_handler(CommandHandler("start", start))
 dispatcher.add_handler(CommandHandler("pairs", pairs))
 dispatcher.add_handler(CommandHandler("on", turn_on))
@@ -28,7 +28,7 @@ dispatcher.add_handler(CommandHandler("off", turn_off))
 dispatcher.add_handler(CommandHandler("status", status))
 dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, pair_selected))
 
-# Webhook для Telegram
+# === Webhook для Telegram ===
 @app.route(f"/{TOKEN}", methods=["POST"])
 def webhook():
     """Приймає оновлення від Telegram."""
