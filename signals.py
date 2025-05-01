@@ -1,29 +1,38 @@
+import pandas as pd
 import yfinance as yf
-from indicators import compute_rsi, compute_stochastic, compute_ema
+from indicators import compute_rsi, compute_stochastic, compute_trend
+from config import TIMEFRAME_MINUTES
 
-def analyze_pair(pair, timeframe, candles, bot):
-    """
-    Аналізує валютну пару за допомогою трьох індикаторів:
-    RSI, Stochastic і EMA.
-    Якщо умови співпадають — надсилає сигнал в Telegram.
-    """
-
+def analyze(pair: str) -> str:
+    """Повертає сигнал для входу в угоду по валютній парі."""
     try:
-        data = yf.download(pair, interval=f"{timeframe}m", period=f"{candles}d")
+        # Завантажуємо дані
+        df = yf.download(pair, interval="5m", period="1d", progress=False)
 
-        if data.empty or len(data) < 50:
-            print(f"Недостатньо даних для {pair}")
-            return
+        if df.empty or len(df) < 50:
+            return f"Недостатньо даних для {pair}."
 
-        rsi_signal = compute_rsi(data)
-        stochastic_signal = compute_stochastic(data)
-        ema_signal = compute_ema(data)
+        # Обчислення індикаторів
+        df = compute_rsi(df)
+        df = compute_stochastic(df)
+        df = compute_trend(df)
 
-        if rsi_signal == stochastic_signal == ema_signal and rsi_signal is not None:
-            direction = "BUY" if rsi_signal == "buy" else "SELL"
-            message = f"{pair}: Вхід {direction} на 15 хвилин"
-            bot.send_message(chat_id=os.environ["CHAT_ID"], text=message)
-            print(f"Сигнал на {pair}: {direction}")
+        # Отримуємо значення останніх двох свічок
+        latest = df.iloc[-1]
+        previous = df.iloc[-2]
+
+        # Логіка сигналу
+        signal = None
+
+        if latest['Trend'] == 'uptrend' and latest['RSI'] > 50 and latest['Stochastic'] > 50:
+            signal = "BUY"
+        elif latest['Trend'] == 'downtrend' and latest['RSI'] < 50 and latest['Stochastic'] < 50:
+            signal = "SELL"
+
+        if signal:
+            return f"{pair}: {signal} на {TIMEFRAME_MINUTES * 3} хвилин."
+        else:
+            return f"{pair}: Сигналу немає."
 
     except Exception as e:
-        print(f"Помилка аналізу {pair}: {e}")
+        return f"Помилка при аналізі {pair}: {e}"
