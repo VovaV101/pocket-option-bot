@@ -1,10 +1,9 @@
 from telegram import Update
 from telegram.ext import CallbackContext
-from config import analyzing
+from handlers import is_running
 
 def status(update: Update, context: CallbackContext):
-    """Відправляє статус аналізу."""
-    if analyzing:
-        update.message.reply_text("Аналіз *активний* ✅", parse_mode="Markdown")
+    if is_running:
+        update.message.reply_text("Аналіз зараз активний ✅")
     else:
-        update.message.reply_text("Аналіз *неактивний* ❌", parse_mode="Markdown")
+        update.message.reply_text("Аналіз зараз неактивний ❌")
