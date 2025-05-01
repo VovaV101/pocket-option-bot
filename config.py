@@ -1,25 +1,19 @@
 # config.py
 
-# Список вибраних пар для аналізу
-selected_pairs = []
+from telegram import Bot
+import os
 
-# Статус аналізу
-analyzing = False
+# Витягуємо токен із змінних середовища Render
+TOKEN = os.getenv("BOT_TOKEN")
 
-# Останні сигнали для кожної пари
-last_signal = {}
+# Створюємо об'єкт бота
+bot = Bot(token=TOKEN)
 
-# Час останнього сигналу для кожної пари
-last_signal_time = {}
+# Таймфрейм для аналізу (в хвилинах)
+TIMEFRAME_MINUTES = 5
 
-# Доступні валютні пари для вибору
-pairs_list = {
-    "EUR/USD": "EURUSD=X",
-    "GBP/USD": "GBPUSD=X",
-    "USD/JPY": "JPY=X",
-    "USD/CAD": "CAD=X",
-    "AUD/USD": "AUDUSD=X",
-    "NZD/USD": "NZDUSD=X",
-    "EUR/JPY": "EURJPY=X",
-    "GBP/JPY": "GBPJPY=X"
-}
+# Список доступних валютних пар
+AVAILABLE_PAIRS = [
+    "EUR/USD", "GBP/USD", "USD/JPY", "USD/CAD",
+    "AUD/USD", "NZD/USD", "EUR/JPY", "GBP/JPY"
+]
