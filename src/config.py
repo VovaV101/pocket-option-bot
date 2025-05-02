@@ -14,10 +14,3 @@ pairs_list = {
 
 # Параметри аналізу
 TIMEFRAME_MINUTES = 5  # Аналіз на 5-хвилинному таймфреймі
-
-# Глобальні змінні
-selected_pairs = []
-analyzing = False
-last_signal = {}
-last_signal_time = {}
-job_reference = None
