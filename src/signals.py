@@ -1,6 +1,7 @@
-
-import yfinance as yf
+import os
 import time
+import yfinance as yf
+from telegram import Bot
 from telegram.ext import CallbackContext
 from src.config import pairs_list, TIMEFRAME_MINUTES
 
@@ -43,12 +44,18 @@ def analyze_job(context: CallbackContext):
     last_signal = context.bot_data.setdefault("last_signal", {})
     last_signal_time = context.bot_data.setdefault("last_signal_time", {})
 
+    if not selected_pairs:
+        print("Немає обраних пар для аналізу.")
+        return
+
+    bot = Bot(token=os.environ["TELEGRAM_TOKEN"])  # Створюємо окремого бота
+
     for pair in selected_pairs:
         signal = get_signal(pair)
         if signal:
             pair_name = [k for k, v in pairs_list.items() if v == pair][0]
             if last_signal.get(pair) != signal:
-                context.bot.send_message(
+                bot.send_message(
                     chat_id=context.job.context,
                     text=f"{pair_name} — Вхід {signal} на {TIMEFRAME_MINUTES * 3} хвилин!\n"
                          f"Час: {time.strftime('%H:%M:%S')}"
