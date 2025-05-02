@@ -1,20 +1,26 @@
+# src/status_report.py
+
 from telegram import Update
 from telegram.ext import CallbackContext
-import src.config as config  # Імпортуємо весь config
+from src.config import pairs_list
 
 def status(update: Update, context: CallbackContext):
     message = ""
 
-    if config.analyzing:
+    analyzing = context.bot_data.get("analyzing", False)
+    selected_pairs = context.bot_data.get("selected_pairs", [])
+    last_signal_time = context.bot_data.get("last_signal_time", {})
+
+    if analyzing:
         message += "✅ Аналіз зараз *активний*.\n\n"
     else:
         message += "⛔ Аналіз зараз *неактивний*.\n\n"
 
-    if config.selected_pairs:
+    if selected_pairs:
         message += "*Обрані валютні пари:*\n"
-        for ticker in config.selected_pairs:
-            pair_name = next((k for k, v in config.pairs_list.items() if v == ticker), ticker)
-            last_time = config.last_signal_time.get(ticker, "Ще немає сигналу")
+        for ticker in selected_pairs:
+            pair_name = [k for k, v in pairs_list.items() if v == ticker][0]
+            last_time = last_signal_time.get(ticker, "Ще немає сигналу")
             message += f"— {pair_name} (Останній сигнал: {last_time})\n"
     else:
         message += "Валютні пари ще не обрані."
