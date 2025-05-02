@@ -20,12 +20,15 @@ def get_signal(pair: str):
         # Молодший таймфрейм (останні 5 свічок)
         junior = data.iloc[-5:]
 
-        # Логіка: тренд старшого + прорив молодшого
         senior_trend_up = senior['Close'].mean() > senior['Open'].mean()
         senior_trend_down = senior['Close'].mean() < senior['Open'].mean()
 
-        junior_breakout_up = junior.iloc[-1]['Close'] > junior['High'].max()
-        junior_breakout_down = junior.iloc[-1]['Close'] < junior['Low'].min()
+        last_close = junior.iloc[-1]['Close']
+        max_high = junior['High'][:-1].max()
+        min_low = junior['Low'][:-1].min()
+
+        junior_breakout_up = last_close > max_high
+        junior_breakout_down = last_close < min_low
 
         if senior_trend_up and junior_breakout_up:
             return "UP"
@@ -38,7 +41,7 @@ def get_signal(pair: str):
         return None
 
 def analyze_job(context):
-    global last_signal
+    global last_signal, last_signal_time
     for pair in selected_pairs:
         signal = get_signal(pair)
         if signal:
