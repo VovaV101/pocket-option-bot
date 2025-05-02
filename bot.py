@@ -1,4 +1,5 @@
 import os
+from queue import Queue
 from flask import Flask, request
 from telegram import Bot, Update
 from telegram.ext import (
@@ -15,14 +16,17 @@ WEBHOOK_URL = os.environ["WEBHOOK_URL"]
 # Ініціалізація Flask
 app = Flask(__name__)
 bot = Bot(token=TOKEN)
-dispatcher = Dispatcher(bot, None, workers=4, use_context=True)
+
+# Ініціалізація Dispatcher із чергою
+update_queue = Queue()
+dispatcher = Dispatcher(bot, update_queue, workers=4, use_context=True)
 
 # Створення і запуск JobQueue
 job_queue = JobQueue()
 job_queue.set_dispatcher(dispatcher)
 job_queue.start()
 
-# Передача job_queue в dispatcher.context
+# Передача job_queue у dispatcher
 dispatcher.bot_data["job_queue"] = job_queue
 
 # Реєстрація команд
@@ -47,4 +51,5 @@ def home():
 if __name__ == "__main__":
     bot.delete_webhook()
     bot.set_webhook(url=f"{WEBHOOK_URL}/{TOKEN}")
+    print(f"Webhook встановлено: {WEBHOOK_URL}/{TOKEN}")
     app.run(host="0.0.0.0", port=8000)
