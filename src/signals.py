@@ -1,6 +1,8 @@
+
 import yfinance as yf
 import time
-from src.config import selected_pairs, last_signal, last_signal_time, pairs_list, TIMEFRAME_MINUTES
+from telegram.ext import CallbackContext
+from src.config import pairs_list, TIMEFRAME_MINUTES
 
 def get_signal(pair: str):
     try:
@@ -23,12 +25,8 @@ def get_signal(pair: str):
         senior_trend_up = senior['Close'].mean() > senior['Open'].mean()
         senior_trend_down = senior['Close'].mean() < senior['Open'].mean()
 
-        last_close = junior.iloc[-1]['Close']
-        max_high = junior['High'][:-1].max()
-        min_low = junior['Low'][:-1].min()
-
-        junior_breakout_up = last_close > max_high
-        junior_breakout_down = last_close < min_low
+        junior_breakout_up = junior.iloc[-1]['Close'] > junior['High'].max()
+        junior_breakout_down = junior.iloc[-1]['Close'] < junior['Low'].min()
 
         if senior_trend_up and junior_breakout_up:
             return "UP"
@@ -40,8 +38,11 @@ def get_signal(pair: str):
         print(f"Помилка при отриманні сигналу для {pair}: {e}")
         return None
 
-def analyze_job(context):
-    global last_signal, last_signal_time
+def analyze_job(context: CallbackContext):
+    selected_pairs = context.bot_data.get("selected_pairs", [])
+    last_signal = context.bot_data.setdefault("last_signal", {})
+    last_signal_time = context.bot_data.setdefault("last_signal_time", {})
+
     for pair in selected_pairs:
         signal = get_signal(pair)
         if signal:
