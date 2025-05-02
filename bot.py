@@ -16,9 +16,14 @@ WEBHOOK_URL = os.environ["WEBHOOK_URL"]
 app = Flask(__name__)
 bot = Bot(token=TOKEN)
 dispatcher = Dispatcher(bot, None, workers=4, use_context=True)
+
+# Створення і запуск JobQueue
 job_queue = JobQueue()
 job_queue.set_dispatcher(dispatcher)
 job_queue.start()
+
+# Передача job_queue в dispatcher.context
+dispatcher.bot_data["job_queue"] = job_queue
 
 # Реєстрація команд
 dispatcher.add_handler(CommandHandler("start", start))
