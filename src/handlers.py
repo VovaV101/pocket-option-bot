@@ -24,7 +24,13 @@ def turn_on(update: Update, context: CallbackContext):
     global analyzing, job_reference
     if not analyzing:
         analyzing = True
-        job_reference = context.job_queue.run_repeating(analyze_job, interval=300, first=1, context=update.message.chat_id)
+        # Оновлено тут:
+        job_reference = context.bot_data["job_queue"].run_repeating(
+            analyze_job,
+            interval=300,
+            first=1,
+            context=update.message.chat_id
+        )
         update.message.reply_text("Аналіз увімкнено!")
     else:
         update.message.reply_text("Аналіз вже працює.")
