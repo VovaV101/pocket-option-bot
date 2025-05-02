@@ -1,9 +1,11 @@
 import os
 import time
 import yfinance as yf
-from telegram import Bot
 from telegram.ext import CallbackContext
 from src.config import pairs_list, TIMEFRAME_MINUTES
+
+# Беремо змінну чат айді один раз на початку
+CHAT_ID = os.environ["CHAT_ID"]
 
 def get_signal(pair: str):
     try:
@@ -18,9 +20,7 @@ def get_signal(pair: str):
         if data.empty or len(data) < 10:
             return None
 
-        # Старший таймфрейм (5 свічок тому)
         senior = data.iloc[-10:-5]
-        # Молодший таймфрейм (останні 5 свічок)
         junior = data.iloc[-5:]
 
         senior_trend_up = senior['Close'].mean() > senior['Open'].mean()
@@ -48,15 +48,13 @@ def analyze_job(context: CallbackContext):
         print("Немає обраних пар для аналізу.")
         return
 
-    bot = Bot(token=os.environ["TELEGRAM_TOKEN"])  # Створюємо окремого бота
-
     for pair in selected_pairs:
         signal = get_signal(pair)
         if signal:
             pair_name = [k for k, v in pairs_list.items() if v == pair][0]
             if last_signal.get(pair) != signal:
-                bot.send_message(
-                    chat_id=context.job.context,
+                context.bot.send_message(
+                    chat_id=CHAT_ID,
                     text=f"{pair_name} — Вхід {signal} на {TIMEFRAME_MINUTES * 3} хвилин!\n"
                          f"Час: {time.strftime('%H:%M:%S')}"
                 )
