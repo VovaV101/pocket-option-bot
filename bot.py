@@ -6,7 +6,7 @@ from telegram.ext import (
     Dispatcher, CommandHandler, MessageHandler, Filters, CallbackContext, JobQueue
 )
 from src.config import pairs_list
-from src.handlers import start, pairs, pair_selected, turn_on, turn_off, status
+from src.handlers import start, pairs, pair_selected, turn_on, turn_off
 
 # Отримання токена та вебхука з середовища
 TOKEN = os.environ["TELEGRAM_TOKEN"]
