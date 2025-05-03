@@ -8,6 +8,8 @@ from telegram.ext import (
 from src.config import pairs_list
 from src.handlers import start, pairs, pair_selected, turn_on, turn_off
 from src.status_report import status
+# Дефолтні популярні пари
+DEFAULT_PAIRS = ["GBP/JPY", "GBP/USD", "EUR/JPY", "USD/JPY", "EUR/USD", "AUD/USD"]
 
 # Отримання токена та вебхука з середовища
 TOKEN = os.environ["TELEGRAM_TOKEN"]
