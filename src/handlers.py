@@ -5,15 +5,7 @@ from src.config import pairs_list
 from src.signals import analyze_job
 
 def start(update: Update, context: CallbackContext):
-    chat_id = update.effective_chat.id
-    context.bot_data.setdefault("selected_pairs", DEFAULT_PAIRS.copy())
-    context.bot_data.setdefault("last_signal", {})
-    context.bot_data.setdefault("last_signal_time", {})
-
-    update.message.reply_text(
-        "✅ Бот готовий до роботи!\n"
-        "Щоб побачити статус аналізу, використайте команду /status."
-    )
+    update.message.reply_text("Привіт! Я твій бот для сигналів. Використай команду /pairs для вибору валютних пар.")
 
 def pairs(update: Update, context: CallbackContext):
     keyboard = [[pair] for pair in pairs_list.keys()]
