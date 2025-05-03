@@ -7,7 +7,7 @@ from telegram.ext import (
 )
 from src.config import pairs_list
 from src.handlers import start, pairs, pair_selected, turn_on, turn_off
-
+from src.status_report import status
 # Отримання токена та вебхука з середовища
 TOKEN = os.environ["TELEGRAM_TOKEN"]
 WEBHOOK_URL = os.environ["WEBHOOK_URL"]
