@@ -6,7 +6,7 @@ from telegram import Bot
 from telegram.ext import CallbackContext
 from src.config import pairs_list, TIMEFRAME_MINUTES
 
-# Беремо змінні середовища
+# Змінні середовища
 CHAT_ID = os.environ.get("CHAT_ID")
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 
@@ -54,19 +54,18 @@ def get_signal(pair: str):
 
 def analyze_job(context: CallbackContext = None, chat_id: str = None):
     if context:
-        # Виклик через JobQueue
-        bot = context.bot
-        selected_pairs = context.bot_data.get("selected_pairs", [])
-        last_signal = context.bot_data.setdefault("last_signal", {})
-        last_signal_time = context.bot_data.setdefault("last_signal_time", {})
+        bot_data = context.bot_data
+        selected_pairs = bot_data.get("selected_pairs", [])
+        last_signal = bot_data.setdefault("last_signal", {})
+        last_signal_time = bot_data.setdefault("last_signal_time", {})
         actual_chat_id = chat_id or context.job.context or CHAT_ID
+        bot = context.bot
     else:
-        # Виклик вручну через /analyze
-        bot = Bot(token=TELEGRAM_TOKEN)
         selected_pairs = list(pairs_list.values())
         last_signal = {}
         last_signal_time = {}
         actual_chat_id = chat_id or CHAT_ID
+        bot = Bot(token=TELEGRAM_TOKEN)
 
     if not selected_pairs:
         print("Немає обраних валютних пар для аналізу.")
@@ -74,24 +73,27 @@ def analyze_job(context: CallbackContext = None, chat_id: str = None):
 
     for pair in selected_pairs:
         signal = get_signal(pair)
+
         if signal:
-            pair_name = next((k for k, v in pairs_list.items() if v == pair), pair)
+            try:
+                pair_name = next((k for k, v in pairs_list.items() if v == pair), pair)
+            except StopIteration:
+                pair_name = pair
 
             previous_signal = last_signal.get(pair)
             print(f"Перевірка {pair}: минулий сигнал = {previous_signal}, новий сигнал = {signal}")
 
             if previous_signal != signal:
-                try:
-                    bot.send_message(
-                        chat_id=actual_chat_id,
-                        text=f"{pair_name} — Вхід {signal} на {TIMEFRAME_MINUTES * 3} хвилин!\n"
-                             f"Час: {time.strftime('%H:%M:%S')}"
-                    )
-                    last_signal[pair] = signal
-                    last_signal_time[pair] = time.strftime('%H:%M:%S')
-                except Exception as send_error:
-                    print(f"Помилка при надсиланні повідомлення: {send_error}")
+                # Надсилаємо сигнал
+                bot.send_message(
+                    chat_id=actual_chat_id,
+                    text=f"{pair_name} — Вхід {signal} на {TIMEFRAME_MINUTES * 3} хвилин!\n"
+                         f"Час: {time.strftime('%H:%M:%S')}"
+                )
+                # Оновлюємо останній сигнал
+                last_signal[pair] = signal
+                last_signal_time[pair] = time.strftime('%H:%M:%S')
             else:
-                print(f"Сигнал для {pair} не змінився, повідомлення не надсилаємо.")
+                print(f"Сигнал для {pair} не змінився ({signal}), повідомлення не надсилаємо.")
         else:
             print(f"Немає сигналу для {pair}")
