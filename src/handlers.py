@@ -1,6 +1,6 @@
 from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import CallbackContext
-from src.config import pairs_list, selected_pairs, analyzing, job_reference
+from telegram.ext import CallbackContex
+from src.config import pairs_list, job_reference
 from src.signals import analyze_job
 
 def start(update: Update, context: CallbackContext):
