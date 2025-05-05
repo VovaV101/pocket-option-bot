@@ -8,9 +8,12 @@ from telegram.ext import (
 from src.config import pairs_list
 from src.handlers import start, pairs, pair_selected, turn_on, turn_off
 from src.status_report import status
+from src.signals import analyze_job  # Імпортуємо analyze_job одразу сюди
+
 # Отримання токена та вебхука з середовища
 TOKEN = os.environ["TELEGRAM_TOKEN"]
 WEBHOOK_URL = os.environ["WEBHOOK_URL"]
+CHAT_ID = os.environ["CHAT_ID"]
 
 # Ініціалізація Flask
 app = Flask(__name__)
@@ -27,6 +30,9 @@ job_queue.start()
 
 # Передача job_queue у dispatcher
 dispatcher.bot_data["job_queue"] = job_queue
+
+# Автоматичний запуск аналізу при старті бота
+job_queue.run_repeating(analyze_job, interval=300, first=5, context=CHAT_ID)
 
 # Реєстрація команд
 dispatcher.add_handler(CommandHandler("start", start))
@@ -46,17 +52,6 @@ def webhook():
 @app.route("/")
 def home():
     return "Бот активний!"
-
-@app.route("/analyze", methods=["GET"])
-def analyze_now():
-    from src.signals import analyze_job
-    chat_id = os.environ.get("CHAT_ID")
-    if chat_id:
-        analyze_job(None, chat_id=chat_id)
-        return "Аналіз виконано!", 200
-    else:
-        return "CHAT_ID не встановлено.", 400
-
 
 if __name__ == "__main__":
     bot.delete_webhook()
