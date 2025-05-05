@@ -1,49 +1,39 @@
-from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import CallbackContex
-from src.config import pairs_list, job_reference
-from src.signals import analyze_job
+from telegram import Update
+from telegram.ext import ContextTypes
 
-def start(update: Update, context: CallbackContext):
-    update.message.reply_text("Привіт! Я твій бот для сигналів. Використай команду /pairs для вибору валютних пар.")
+from src.config import pairs_list, selected_pairs, analyzing, job_reference
 
-def pairs(update: Update, context: CallbackContext):
-    keyboard = [[pair] for pair in pairs_list.keys()]
-    markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
-    update.message.reply_text("Оберіть валютні пари для аналізу:", reply_markup=markup)
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [[pair] for pair in pairs_list]
+    reply_markup = {"keyboard": keyboard, "resize_keyboard": True}
+    await update.message.reply_text(
+        "Оберіть валютні пари для аналізу:", reply_markup=reply_markup
+    )
 
-def pair_selected(update: Update, context: CallbackContext):
-    global selected_pairs
+async def pairs(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
-    if text in pairs_list:
-        selected_pairs.append(pairs_list[text])
-        context.bot_data["selected_pairs"] = selected_pairs  # оновлюємо в bot_data
-        update.message.reply_text(f"Додано пару: {text}")
-    else:
-        update.message.reply_text("Будь ласка, оберіть валютну пару зі списку через /pairs.")
+    if text in selected_pairs:
+        await update.message.reply_text(f"⚠️ Пара {text} вже обрана.")
+    elif text in pairs_list:
+        selected_pairs.append(text)
+        await update.message.reply_text(f"✅ Додано пару: {text}")
 
-def turn_on(update: Update, context: CallbackContext):
-    global analyzing, job_reference
-    if not analyzing:
-        analyzing = True
-        job_queue = context.bot_data.get("job_queue")
-        if job_queue:
-            job_reference = job_queue.run_repeating(
-                analyze_job,
-                interval=300,  # кожні 5 хвилин
-                first=1,
-                context=update.message.chat_id
-            )
-            update.message.reply_text("Аналіз увімкнено!")
-        else:
-            update.message.reply_text("Помилка: JobQueue не знайдено!")
-    else:
-        update.message.reply_text("Аналіз вже працює.")
+async def pair_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    selected_text = "\n".join(f"— {pair}" for pair in selected_pairs) if selected_pairs else "Немає обраних пар."
+    await update.message.reply_text(f"Обрані пари:\n{selected_text}")
 
-def turn_off(update: Update, context: CallbackContext):
-    global analyzing, job_reference
-    if analyzing and job_reference:
-        job_reference.schedule_removal()
-        analyzing = False
-        update.message.reply_text("Аналіз вимкнено.")
+async def turn_on(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not analyzing.is_set():
+        analyzing.set()
+        await update.message.reply_text("✅ Аналіз увімкнено.")
     else:
-        update.message.reply_text("Аналіз вже вимкнений або не запущений.")
+        await update.message.reply_text("Аналіз вже увімкнено.")
+
+async def turn_off(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if analyzing.is_set():
+        analyzing.clear()
+        if job_reference:
+            job_reference.schedule_removal()
+        await update.message.reply_text("⛔️ Аналіз вимкнено.")
+    else:
+        await update.message.reply_text("Аналіз вже вимкнено.")
