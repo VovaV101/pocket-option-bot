@@ -11,7 +11,11 @@ from src.status_report import send_signal
 app = Flask(__name__)
 application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
-# Команди
+# Обов'язково: встановлюємо application у signals.py
+import src.signals
+src.signals.application = application
+
+# Реєстрація обробників команд
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("pairs", pairs))
 application.add_handler(CommandHandler("on", turn_on))
