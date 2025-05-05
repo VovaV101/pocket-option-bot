@@ -1,6 +1,5 @@
-python-telegram-bot==20.4
-flask
+Flask
+python-telegram-bot==20.3
 pandas
 yfinance
-python-dotenv
 ta
