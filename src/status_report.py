@@ -1,28 +1,13 @@
-from telegram import Update
-from telegram.ext import CallbackContext
-from src.config import pairs_list
+from src.config import chat_id
 
-def status(update: Update, context: CallbackContext):
-    bot_data = context.bot_data
+async def send_signal(bot, pair, signal):
+    text = f"✅ Новий сигнал для {pair}: {signal}"
+    await bot.send_message(chat_id=chat_id, text=text)
 
-    analyzing = bot_data.get("analyzing", False)
-    selected_pairs = bot_data.get("selected_pairs", [])
-    last_signal_time = bot_data.get("last_signal_time", {})
-
-    message = ""
-
-    if analyzing:
-        message += "✅ Аналіз зараз *активний*.\n\n"
-    else:
-        message += "⛔ Аналіз зараз *неактивний*.\n\n"
-
-    if selected_pairs:
-        message += "*Обрані валютні пари:*\n"
-        for ticker in selected_pairs:
-            pair_name = next((k for k, v in pairs_list.items() if v == ticker), ticker)
-            last_time = last_signal_time.get(ticker, "Ще немає сигналу")
-            message += f"— {pair_name} (Останній сигнал: {last_time})\n"
-    else:
-        message += "Валютні пари ще не обрані."
-
-    update.message.reply_text(message, parse_mode="Markdown")
+async def send_status(bot):
+    text = (
+        "✅ Аналіз зараз активний.\n\n"
+        "Обрані валютні пари:\n" +
+        "\n".join([f"— {pair}" for pair in sorted(set(bot.selected_pairs))])
+    )
+    await bot.send_message(chat_id=chat_id, text=text)
