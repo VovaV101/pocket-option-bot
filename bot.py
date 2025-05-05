@@ -47,6 +47,16 @@ def webhook():
 def home():
     return "Бот активний!"
 
+@app.route("/analyze", methods=["GET"])
+def analyze_now():
+    from src.signals import analyze_job
+    chat_id = os.environ.get("CHAT_ID")
+    if chat_id:
+        analyze_job(None, chat_id=chat_id)
+        return "Аналіз виконано!", 200
+    else:
+        return "CHAT_ID не встановлено.", 400
+
 
 if __name__ == "__main__":
     bot.delete_webhook()
