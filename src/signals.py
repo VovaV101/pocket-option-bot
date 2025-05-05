@@ -3,7 +3,7 @@ import time
 import yfinance as yf
 from src.status_report import send_signal
 from src.config import pairs_list, TIMEFRAME_MINUTES
-from src.handlers import selected_pairs
+from src.config import selected_pairs
 
 analyzing = False
 analysis_thread = None
