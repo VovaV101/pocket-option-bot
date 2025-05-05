@@ -38,4 +38,4 @@ if __name__ == "__main__":
     application.bot.delete_webhook()
     application.bot.set_webhook(url=f"{WEBHOOK_URL}/{TELEGRAM_TOKEN}")
     print(f"Webhook встановлено: {WEBHOOK_URL}/{TELEGRAM_TOKEN}")
-    app.run(host="
+    app.run(host="0.0.0.0", port=8000)
