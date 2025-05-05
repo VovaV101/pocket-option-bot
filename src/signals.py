@@ -53,44 +53,36 @@ def get_signal(pair: str):
         return None
 
 def analyze_job(context: CallbackContext = None, chat_id=None):
-    try:
-        # Якщо context є (користувач обирав пари вручну)
-        if context:
-            selected_pairs = context.bot_data.get("selected_pairs", [])
-            last_signal = context.bot_data.setdefault("last_signal", {})
-            last_signal_time = context.bot_data.setdefault("last_signal_time", {})
-            bot = context.bot
-            actual_chat_id = chat_id or CHAT_ID
-        else:
-            # Якщо context нема (запуск автоматично), беремо всі доступні пари
-            selected_pairs = list(pairs_list.values())
-            last_signal = {}
-            last_signal_time = {}
-            bot = Bot(token=TELEGRAM_TOKEN)
-            actual_chat_id = chat_id or CHAT_ID
+    if context is not None:
+        selected_pairs = context.bot_data.get("selected_pairs", [])
+        last_signal = context.bot_data.setdefault("last_signal", {})
+        last_signal_time = context.bot_data.setdefault("last_signal_time", {})
+        actual_chat_id = chat_id or context.job.context or CHAT_ID
+        bot = context.bot
+    else:
+        selected_pairs = list(pairs_list.values())
+        last_signal = {}
+        last_signal_time = {}
+        actual_chat_id = chat_id or CHAT_ID
+        bot = Bot(token=TELEGRAM_TOKEN)
 
-        if not selected_pairs:
-            print("Немає обраних пар для аналізу.")
-            return
+    if not selected_pairs:
+        print("Немає обраних пар для аналізу.")
+        return
 
-        for pair in selected_pairs:
-            signal = get_signal(pair)
-            if signal:
-                try:
-                    pair_name = [k for k, v in pairs_list.items() if v == pair][0]
-                except (IndexError, ValueError):
-                    pair_name = pair
+    for pair in selected_pairs:
+        signal = get_signal(pair)
+        if signal:
+            try:
+                pair_name = [k for k, v in pairs_list.items() if v == pair][0]
+            except IndexError:
+                pair_name = pair
 
-                last_known_signal = last_signal.get(pair)
-
-                if last_known_signal != signal:
-                    bot.send_message(
-                        chat_id=actual_chat_id,
-                        text=f"{pair_name} — Вхід {signal} на {TIMEFRAME_MINUTES * 3} хвилин!\n"
-                             f"Час: {time.strftime('%H:%M:%S')}"
-                    )
-                    last_signal[pair] = signal
-                    last_signal_time[pair] = time.strftime('%H:%M:%S')
-
-    except Exception as e:
-        print(f"Помилка в analyze_job: {e}")
+            if last_signal.get(pair) != signal:
+                bot.send_message(
+                    chat_id=actual_chat_id,
+                    text=f"{pair_name} — Вхід {signal} на {TIMEFRAME_MINUTES * 3} хвилин!\n"
+                         f"Час: {time.strftime('%H:%M:%S')}"
+                )
+                last_signal[pair] = signal
+                last_signal_time[pair] = time.strftime('%H:%M:%S')
