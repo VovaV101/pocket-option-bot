@@ -3,53 +3,39 @@ from queue import Queue
 from flask import Flask, request
 from telegram import Bot, Update
 from telegram.ext import (
-    Dispatcher, CommandHandler, MessageHandler, Filters, CallbackContext, JobQueue
+    Application, ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackContext
 )
-from src.config import pairs_list
+from src.config import TELEGRAM_TOKEN, WEBHOOK_URL
 from src.handlers import start, pairs, pair_selected, turn_on, turn_off
 from src.status_report import status
 
-# Отримання токена та вебхука з середовища
-TOKEN = os.environ["TELEGRAM_TOKEN"]
-WEBHOOK_URL = os.environ["WEBHOOK_URL"]
-
-# Ініціалізація Flask
+# Flask сервер
 app = Flask(__name__)
-bot = Bot(token=TOKEN)
 
-# Ініціалізація Dispatcher із чергою
-update_queue = Queue()
-dispatcher = Dispatcher(bot, update_queue, workers=4, use_context=True)
+# Ініціалізація Telegram бота через ApplicationBuilder
+application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
-# Створення і запуск JobQueue
-job_queue = JobQueue()
-job_queue.set_dispatcher(dispatcher)
-job_queue.start()
+# Реєстрація обробників команд
+application.add_handler(CommandHandler("start", start))
+application.add_handler(CommandHandler("pairs", pairs))
+application.add_handler(CommandHandler("on", turn_on))
+application.add_handler(CommandHandler("off", turn_off))
+application.add_handler(CommandHandler("status", status))
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, pair_selected))
 
-# Передача job_queue у dispatcher
-dispatcher.bot_data["job_queue"] = job_queue
-
-# Реєстрація команд
-dispatcher.add_handler(CommandHandler("start", start))
-dispatcher.add_handler(CommandHandler("pairs", pairs))
-dispatcher.add_handler(CommandHandler("on", turn_on))
-dispatcher.add_handler(CommandHandler("off", turn_off))
-dispatcher.add_handler(CommandHandler("status", status))
-dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, pair_selected))
-
-# Webhook для Telegram
-@app.route(f"/{TOKEN}", methods=["POST"])
+# Flask маршрут для Webhook
+@app.route(f"/{TELEGRAM_TOKEN}", methods=["POST"])
 def webhook():
-    update = Update.de_json(request.get_json(force=True), bot)
-    dispatcher.process_update(update)
+    update = Update.de_json(request.get_json(force=True), application.bot)
+    application.update_queue.put(update)
     return "ok", 200
 
 @app.route("/")
 def home():
-    return "Бот активний!"
+    return "Бот працює!"
 
 if __name__ == "__main__":
-    bot.delete_webhook()
-    bot.set_webhook(url=f"{WEBHOOK_URL}/{TOKEN}")
-    print(f"Webhook встановлено: {WEBHOOK_URL}/{TOKEN}")
+    application.bot.delete_webhook()
+    application.bot.set_webhook(url=f"{WEBHOOK_URL}/{TELEGRAM_TOKEN}")
+    print(f"Webhook встановлено: {WEBHOOK_URL}/{TELEGRAM_TOKEN}")
     app.run(host="0.0.0.0", port=8000)
