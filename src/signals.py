@@ -1,11 +1,12 @@
-import os
 import time
 import pandas as pd
 import yfinance as yf
 import ta
 from telegram import Bot
-from telegram.ext import CallbackContext
 from src.config import pairs_list, TIMEFRAME_MINUTES, TELEGRAM_TOKEN, CHAT_ID
+
+# Змінна для збереження роботи задачі
+job_instance = None
 
 def fetch_data(pair: str, interval: str, period: str):
     try:
@@ -39,7 +40,6 @@ def calculate_indicators(df: pd.DataFrame):
     return df
 
 def get_signal(pair: str):
-    # Завантаження старшого таймфрейму (H1)
     senior = fetch_data(pair, interval="60m", period="2d")
     senior = calculate_indicators(senior)
 
@@ -50,7 +50,6 @@ def get_signal(pair: str):
     senior_trend_up = senior["EMA_14"].iloc[-1] > senior["EMA_14"].iloc[-5]
     senior_trend_down = senior["EMA_14"].iloc[-1] < senior["EMA_14"].iloc[-5]
 
-    # Завантаження молодшого таймфрейму (5m)
     junior = fetch_data(pair, interval="5m", period="2d")
     junior = calculate_indicators(junior)
 
@@ -64,7 +63,6 @@ def get_signal(pair: str):
     stoch_k = last["Stoch_K"]
     stoch_d = last["Stoch_D"]
 
-    # Умови сигналу
     if senior_trend_up and rsi > 50 and stoch_k > stoch_d and stoch_k > 20:
         return "UP"
     elif senior_trend_down and rsi < 50 and stoch_k < stoch_d and stoch_k < 80:
@@ -72,46 +70,47 @@ def get_signal(pair: str):
     else:
         return None
 
-def analyze_job(context: CallbackContext = None, chat_id: str = None):
-    if context:
-        bot_data = context.bot_data
-        selected_pairs = bot_data.get("selected_pairs", [])
-        last_signal = bot_data.setdefault("last_signal", {})
-        last_signal_time = bot_data.setdefault("last_signal_time", {})
-        actual_chat_id = chat_id or context.job.context
-        bot = context.bot
-    else:
-        selected_pairs = list(pairs_list.values())
-        last_signal = {}
-        last_signal_time = {}
-        actual_chat_id = chat_id or CHAT_ID
-        bot = Bot(token=TELEGRAM_TOKEN)
+def analyze_job(context):
+    selected_pairs = context.job.data.get("selected_pairs", [])
+    bot = context.bot
+    chat_id = context.job.data.get("chat_id", CHAT_ID)
 
     if not selected_pairs:
         print("Немає обраних валютних пар для аналізу.")
         return
 
     for pair in selected_pairs:
-        signal = get_signal(pair)
+        signal = get_signal(pairs_list[pair])
 
         if signal:
-            try:
-                pair_name = next((k for k, v in pairs_list.items() if v == pair), pair)
-            except StopIteration:
-                pair_name = pair
-
-            previous_signal = last_signal.get(pair)
-            print(f"Перевірка {pair}: минулий сигнал = {previous_signal}, новий сигнал = {signal}")
-
-            if previous_signal != signal:
-                bot.send_message(
-                    chat_id=actual_chat_id,
-                    text=f"{pair_name} — Вхід {signal} на {TIMEFRAME_MINUTES * 3} хвилин!\n"
-                         f"Час: {time.strftime('%H:%M:%S')}"
-                )
-                last_signal[pair] = signal
-                last_signal_time[pair] = time.strftime('%H:%M:%S')
-            else:
-                print(f"Сигнал для {pair} не змінився ({signal}), повідомлення не надсилаємо.")
+            text = f"{pair} — Вхід {signal} на {TIMEFRAME_MINUTES * 3} хвилин!\nЧас: {time.strftime('%H:%M:%S')}"
+            bot.send_message(chat_id=chat_id, text=text)
+            print(f"Надіслано сигнал: {text}")
         else:
             print(f"Немає сигналу для {pair}")
+
+def start_analysis(selected_pairs):
+    global job_instance
+    from src.bot import application
+
+    if job_instance:
+        print("Аналіз уже запущено.")
+        return
+
+    job_instance = application.job_queue.run_repeating(
+        analyze_job,
+        interval=TIMEFRAME_MINUTES * 60,
+        first=0,
+        data={"selected_pairs": list(selected_pairs), "chat_id": CHAT_ID}
+    )
+    print("Аналіз стартував.")
+
+def stop_analysis():
+    global job_instance
+
+    if job_instance:
+        job_instance.schedule_removal()
+        job_instance = None
+        print("Аналіз зупинено.")
+    else:
+        print("Аналіз не був запущений.")
