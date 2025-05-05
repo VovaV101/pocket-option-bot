@@ -1,49 +1,45 @@
-from telegram import Update, ReplyKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackContext
-from src.config import pairs_list, selected_pairs, analyzing
+from src.config import pairs_list
 from src.signals import start_analysis, stop_analysis
 
-async def start(update: Update, context: CallbackContext):
-    await update.message.reply_text(
-        "Привіт! Я твій бот для сигналів.\n"
-        "Команди:\n"
-        "/pairs — обрати валютні пари\n"
-        "/on — увімкнути аналіз\n"
-        "/off — вимкнути аналіз\n"
-        "/status — переглянути статус"
-    )
+selected_pairs = set()
+analyzing = False
 
-async def pairs(update: Update, context: CallbackContext):
-    keyboard = [[pair] for pair in pairs_list.keys()]
-    markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
-    await update.message.reply_text("Оберіть валютні пари для аналізу:", reply_markup=markup)
+def start(update: Update, context: CallbackContext):
+    keyboard = [[InlineKeyboardButton(pair, callback_data=pair)] for pair in pairs_list.keys()]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    update.message.reply_text('Оберіть валютні пари для аналізу:', reply_markup=reply_markup)
 
-async def pair_selected(update: Update, context: CallbackContext):
-    text = update.message.text
-    if text in pairs_list:
-        symbol = pairs_list[text]
-        if symbol not in selected_pairs:
-            selected_pairs.append(symbol)
-            await update.message.reply_text(f"Додано пару: {text}")
-        else:
-            await update.message.reply_text(f"Пара {text} вже обрана.")
+def pairs(update: Update, context: CallbackContext):
+    keyboard = [[InlineKeyboardButton(pair, callback_data=pair)] for pair in pairs_list.keys()]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    update.message.reply_text('Оберіть валютні пари для аналізу:', reply_markup=reply_markup)
+
+def pair_selected(update: Update, context: CallbackContext):
+    query = update.callback_query
+    query.answer()
+    pair = query.data
+    if pair in selected_pairs:
+        query.edit_message_text(text=f"⚠️ Пара {pair} вже обрана.")
     else:
-        await update.message.reply_text("Будь ласка, оберіть валютну пару зі списку через /pairs.")
+        selected_pairs.add(pair)
+        query.edit_message_text(text=f"✅ Додано пару: {pair}")
 
-async def turn_on(update: Update, context: CallbackContext):
+def turn_on(update: Update, context: CallbackContext):
     global analyzing
     if not analyzing:
-        await start_analysis(context.bot)
+        update.message.reply_text('▶️ Аналіз увімкнено.')
+        start_analysis()
         analyzing = True
-        await update.message.reply_text("Аналіз увімкнено!")
     else:
-        await update.message.reply_text("Аналіз вже активний.")
+        update.message.reply_text('Аналіз уже увімкнений.')
 
-async def turn_off(update: Update, context: CallbackContext):
+def turn_off(update: Update, context: CallbackContext):
     global analyzing
     if analyzing:
-        await stop_analysis()
+        update.message.reply_text('⏹️ Аналіз вимкнено.')
+        stop_analysis()
         analyzing = False
-        await update.message.reply_text("Аналіз вимкнено!")
     else:
-        await update.message.reply_text("Аналіз вже вимкнений.")
+        update.message.reply_text('Аналіз уже вимкнений.')
