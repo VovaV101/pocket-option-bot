@@ -20,7 +20,7 @@ application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("pairs", pairs))
 application.add_handler(CommandHandler("on", turn_on))
 application.add_handler(CommandHandler("off", turn_off))
-application.add_handler(CommandHandler("status", status))
+application.add_handler(CommandHandler("status", send_signal))  # <- Виправлено тут
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, pair_selected))
 
 # Flask маршрут для Webhook
@@ -38,4 +38,4 @@ if __name__ == "__main__":
     application.bot.delete_webhook()
     application.bot.set_webhook(url=f"{WEBHOOK_URL}/{TELEGRAM_TOKEN}")
     print(f"Webhook встановлено: {WEBHOOK_URL}/{TELEGRAM_TOKEN}")
-    app.run(host="0.0.0.0", port=8000)
+    app.run(host="
