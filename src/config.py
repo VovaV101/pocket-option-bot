@@ -1,9 +1,3 @@
-import os
-
-# Змінні середовища
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")
-
 # Валютні пари
 pairs_list = {
     "EUR/USD": "EURUSD=X",
@@ -19,9 +13,10 @@ pairs_list = {
 }
 
 # Параметри аналізу
-TIMEFRAME_MINUTES = 5  # Аналіз на 5-хвилинному таймфреймі
+TIMEFRAME_MINUTES = 5
 
-# Змінні для роботи бота
-selected_pairs = []
-analyzing = False
-job_reference = None
+# Змінні середовища
+import os
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+CHAT_ID = os.getenv("CHAT_ID")
