@@ -1,12 +1,15 @@
+# src/signals.py
+
 import time
 import pandas as pd
 import yfinance as yf
 import ta
 from telegram import Bot
-from src.config import pairs_list, TIMEFRAME_MINUTES, TELEGRAM_TOKEN, CHAT_ID
+from telegram.ext import CallbackContext, JobQueue
+from src.config import pairs_list, TELEGRAM_TOKEN, CHAT_ID, TIMEFRAME_MINUTES
 
-# Змінна для збереження роботи задачі
-job_instance = None
+selected_pairs = set()
+job = None
 
 def fetch_data(pair: str, interval: str, period: str):
     try:
@@ -26,13 +29,8 @@ def calculate_indicators(df: pd.DataFrame):
     if df.empty:
         return df
 
-    # EMA
     df["EMA_14"] = ta.trend.ema_indicator(df["Close"], window=14)
-
-    # RSI
     df["RSI_14"] = ta.momentum.rsi(df["Close"], window=14)
-
-    # Stochastic
     stoch = ta.momentum.StochasticOscillator(df["High"], df["Low"], df["Close"], window=14, smooth_window=3)
     df["Stoch_K"] = stoch.stoch()
     df["Stoch_D"] = stoch.stoch_signal()
@@ -44,73 +42,58 @@ def get_signal(pair: str):
     senior = calculate_indicators(senior)
 
     if senior.empty or len(senior) < 10:
-        print(f"Недостатньо даних для старшого таймфрейму для {pair}")
+        print(f"Недостатньо даних для H1 таймфрейму: {pair}")
         return None
 
-    senior_trend_up = senior["EMA_14"].iloc[-1] > senior["EMA_14"].iloc[-5]
-    senior_trend_down = senior["EMA_14"].iloc[-1] < senior["EMA_14"].iloc[-5]
+    trend_up = senior["EMA_14"].iloc[-1] > senior["EMA_14"].iloc[-5]
+    trend_down = senior["EMA_14"].iloc[-1] < senior["EMA_14"].iloc[-5]
 
     junior = fetch_data(pair, interval="5m", period="2d")
     junior = calculate_indicators(junior)
 
     if junior.empty or len(junior) < 10:
-        print(f"Недостатньо даних для молодшого таймфрейму для {pair}")
+        print(f"Недостатньо даних для M5 таймфрейму: {pair}")
         return None
 
     last = junior.iloc[-1]
-
     rsi = last["RSI_14"]
     stoch_k = last["Stoch_K"]
     stoch_d = last["Stoch_D"]
 
-    if senior_trend_up and rsi > 50 and stoch_k > stoch_d and stoch_k > 20:
+    if trend_up and rsi > 50 and stoch_k > stoch_d and stoch_k > 20:
         return "UP"
-    elif senior_trend_down and rsi < 50 and stoch_k < stoch_d and stoch_k < 80:
+    elif trend_down and rsi < 50 and stoch_k < stoch_d and stoch_k < 80:
         return "DOWN"
     else:
         return None
 
-def analyze_job(context):
-    selected_pairs = context.job.data.get("selected_pairs", [])
+def analyze(context: CallbackContext):
     bot = context.bot
-    chat_id = context.job.data.get("chat_id", CHAT_ID)
-
-    if not selected_pairs:
-        print("Немає обраних валютних пар для аналізу.")
-        return
-
     for pair in selected_pairs:
-        signal = get_signal(pairs_list[pair])
+        ticker = pairs_list.get(pair)
+        if not ticker:
+            continue
 
+        signal = get_signal(ticker)
         if signal:
-            text = f"{pair} — Вхід {signal} на {TIMEFRAME_MINUTES * 3} хвилин!\nЧас: {time.strftime('%H:%M:%S')}"
-            bot.send_message(chat_id=chat_id, text=text)
-            print(f"Надіслано сигнал: {text}")
+            bot.send_message(
+                chat_id=CHAT_ID,
+                text=f"📈 {pair}: Сигнал {signal} на {TIMEFRAME_MINUTES * 3} хвилин!\nЧас: {time.strftime('%H:%M:%S')}"
+            )
+            print(f"Сигнал для {pair}: {signal}")
         else:
             print(f"Немає сигналу для {pair}")
 
-def start_analysis(selected_pairs):
-    global job_instance
-    from src.bot import application
+def start_analysis(context: CallbackContext):
+    global job
+    if job is None:
+        job_queue: JobQueue = context.job_queue
+        job = job_queue.run_repeating(analyze, interval=TIMEFRAME_MINUTES * 60, first=5)
+        print("Аналіз запущено.")
 
-    if job_instance:
-        print("Аналіз уже запущено.")
-        return
-
-    job_instance = application.job_queue.run_repeating(
-        analyze_job,
-        interval=TIMEFRAME_MINUTES * 60,
-        first=0,
-        data={"selected_pairs": list(selected_pairs), "chat_id": CHAT_ID}
-    )
-    print("Аналіз стартував.")
-
-def stop_analysis():
-    global job_instance
-
-    if job_instance:
-        job_instance.schedule_removal()
-        job_instance = None
+def stop_analysis(context: CallbackContext):
+    global job
+    if job is not None:
+        job.schedule_removal()
+        job = None
         print("Аналіз зупинено.")
-    else:
-        print("Аналіз не був запущений.")
