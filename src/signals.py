@@ -2,11 +2,13 @@ import os
 import time
 import yfinance as yf
 import pandas as pd
+from telegram import Bot
 from telegram.ext import CallbackContext
 from src.config import pairs_list, TIMEFRAME_MINUTES
 
-# Беремо змінну чат айді один раз на початку
+# Беремо змінні середовища
 CHAT_ID = os.environ["CHAT_ID"]
+TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
 
 def get_signal(pair: str):
     try:
@@ -30,7 +32,6 @@ def get_signal(pair: str):
         senior_trend_up = senior["Close"].mean() > senior["Open"].mean()
         senior_trend_down = senior["Close"].mean() < senior["Open"].mean()
 
-        # Перевіряємо коректність останньої свічки
         last_candle = junior.iloc[-1]
         junior_high_max = junior["High"].max()
         junior_low_min = junior["Low"].min()
@@ -51,10 +52,19 @@ def get_signal(pair: str):
         print(f"Помилка при отриманні сигналу для {pair}: {e}")
         return None
 
-def analyze_job(context: CallbackContext):
-    selected_pairs = context.bot_data.get("selected_pairs", [])
-    last_signal = context.bot_data.setdefault("last_signal", {})
-    last_signal_time = context.bot_data.setdefault("last_signal_time", {})
+def analyze_job(context: CallbackContext = None, chat_id=None):
+    if context is not None:
+        selected_pairs = context.bot_data.get("selected_pairs", [])
+        last_signal = context.bot_data.setdefault("last_signal", {})
+        last_signal_time = context.bot_data.setdefault("last_signal_time", {})
+        actual_chat_id = CHAT_ID
+        bot = context.bot
+    else:
+        selected_pairs = list(pairs_list.values())
+        last_signal = {}
+        last_signal_time = {}
+        actual_chat_id = chat_id or CHAT_ID
+        bot = Bot(token=TELEGRAM_TOKEN)
 
     if not selected_pairs:
         print("Немає обраних пар для аналізу.")
@@ -63,10 +73,14 @@ def analyze_job(context: CallbackContext):
     for pair in selected_pairs:
         signal = get_signal(pair)
         if signal:
-            pair_name = [k for k, v in pairs_list.items() if v == pair][0]
+            try:
+                pair_name = [k for k, v in pairs_list.items() if v == pair][0]
+            except IndexError:
+                pair_name = pair  # якщо нема в словнику, просто ім'я пари
+
             if last_signal.get(pair) != signal:
-                context.bot.send_message(
-                    chat_id=CHAT_ID,
+                bot.send_message(
+                    chat_id=actual_chat_id,
                     text=f"{pair_name} — Вхід {signal} на {TIMEFRAME_MINUTES * 3} хвилин!\n"
                          f"Час: {time.strftime('%H:%M:%S')}"
                 )
