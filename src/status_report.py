@@ -4,6 +4,7 @@ from src.config import pairs_list
 
 def status(update: Update, context: CallbackContext):
     bot_data = context.bot_data
+
     analyzing = bot_data.get("analyzing", False)
     selected_pairs = bot_data.get("selected_pairs", [])
     last_signal_time = bot_data.get("last_signal_time", {})
