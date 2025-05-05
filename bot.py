@@ -2,34 +2,35 @@ import os
 from flask import Flask, request
 from telegram import Update
 from telegram.ext import (
-    ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, filters
+    ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters
 )
 from src.config import TELEGRAM_TOKEN, WEBHOOK_URL
 from src.handlers import start, pairs, pair_selected, turn_on, turn_off
-from src.status_report import send_signal
+from src.status_report import send_status
 
+# Flask сервер
 app = Flask(__name__)
+
+# Ініціалізація Telegram Application
 application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
-# Команди
+# Додаємо обробники команд
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("pairs", pairs))
 application.add_handler(CommandHandler("on", turn_on))
 application.add_handler(CommandHandler("off", turn_off))
-application.add_handler(CommandHandler("status", send_signal))
-
-# Окремо обробник для кнопок!
-application.add_handler(CallbackQueryHandler(pair_selected))
-
-# І обробник звичайного тексту
+application.add_handler(CommandHandler("status", send_status))
+application.add_handler(CallbackQueryHandler(pair_selected))  # Обробник натискання на кнопки
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, pair_selected))
 
+# Webhook маршрут
 @app.route(f"/{TELEGRAM_TOKEN}", methods=["POST"])
 def webhook():
     update = Update.de_json(request.get_json(force=True), application.bot)
     application.update_queue.put(update)
     return "ok", 200
 
+# Головна сторінка
 @app.route("/")
 def home():
     return "Бот працює!"
