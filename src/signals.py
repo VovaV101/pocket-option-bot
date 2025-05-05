@@ -1,6 +1,7 @@
 import os
 import time
 import yfinance as yf
+import pandas as pd
 from telegram.ext import CallbackContext
 from src.config import pairs_list, TIMEFRAME_MINUTES
 
@@ -23,11 +24,22 @@ def get_signal(pair: str):
         senior = data.iloc[-10:-5]
         junior = data.iloc[-5:]
 
-        senior_trend_up = senior['Close'].mean() > senior['Open'].mean()
-        senior_trend_down = senior['Close'].mean() < senior['Open'].mean()
+        if senior.empty or junior.empty:
+            return None
 
-        junior_breakout_up = junior.iloc[-1]['Close'] > junior['High'].max()
-        junior_breakout_down = junior.iloc[-1]['Close'] < junior['Low'].min()
+        senior_trend_up = senior["Close"].mean() > senior["Open"].mean()
+        senior_trend_down = senior["Close"].mean() < senior["Open"].mean()
+
+        # Перевіряємо коректність останньої свічки
+        last_candle = junior.iloc[-1]
+        junior_high_max = junior["High"].max()
+        junior_low_min = junior["Low"].min()
+
+        if pd.isna(last_candle["Close"]) or pd.isna(junior_high_max) or pd.isna(junior_low_min):
+            return None
+
+        junior_breakout_up = float(last_candle["Close"]) > float(junior_high_max)
+        junior_breakout_down = float(last_candle["Close"]) < float(junior_low_min)
 
         if senior_trend_up and junior_breakout_up:
             return "UP"
