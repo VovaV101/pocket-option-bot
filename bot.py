@@ -7,7 +7,7 @@ from telegram.ext import (
 )
 from src.config import TELEGRAM_TOKEN, WEBHOOK_URL
 from src.handlers import start, pairs, pair_selected, turn_on, turn_off
-from src.status_report import status
+from src.status_report import send_signal
 
 # Flask сервер
 app = Flask(__name__)
