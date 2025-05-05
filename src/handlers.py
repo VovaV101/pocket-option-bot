@@ -1,13 +1,10 @@
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import CallbackContext
-from src.config import pairs_list
+from src.config import pairs_list, selected_pairs, analyzing, job_reference
 from src.signals import analyze_job
 
 def start(update: Update, context: CallbackContext):
-    update.message.reply_text(
-        "Привіт! Я твій бот для сигналів.\n"
-        "Використай команду /pairs для вибору валютних пар."
-    )
+    update.message.reply_text("Привіт! Я твій бот для сигналів. Використай команду /pairs для вибору валютних пар.")
 
 def pairs(update: Update, context: CallbackContext):
     keyboard = [[pair] for pair in pairs_list.keys()]
@@ -15,35 +12,38 @@ def pairs(update: Update, context: CallbackContext):
     update.message.reply_text("Оберіть валютні пари для аналізу:", reply_markup=markup)
 
 def pair_selected(update: Update, context: CallbackContext):
-    selected_pairs = context.bot_data.setdefault("selected_pairs", [])
+    global selected_pairs
     text = update.message.text
     if text in pairs_list:
-        symbol = pairs_list[text]
-        if symbol not in selected_pairs:
-            selected_pairs.append(symbol)
-            update.message.reply_text(f"✅ Додано пару: {text}")
-        else:
-            update.message.reply_text(f"⚠️ Пара {text} вже обрана.")
+        selected_pairs.append(pairs_list[text])
+        context.bot_data["selected_pairs"] = selected_pairs  # оновлюємо в bot_data
+        update.message.reply_text(f"Додано пару: {text}")
     else:
-        update.message.reply_text("⚠️ Будь ласка, оберіть валютну пару зі списку через /pairs.")
+        update.message.reply_text("Будь ласка, оберіть валютну пару зі списку через /pairs.")
 
 def turn_on(update: Update, context: CallbackContext):
-    analyzing = context.bot_data.get("analyzing", False)
+    global analyzing, job_reference
     if not analyzing:
-        job_queue = context.bot_data["job_queue"]
-        job = job_queue.run_repeating(analyze_job, interval=300, first=1, context=update.message.chat_id)
-        context.bot_data["analyzing"] = True
-        context.bot_data["job_reference"] = job
-        update.message.reply_text("✅ Аналіз увімкнено!")
+        analyzing = True
+        job_queue = context.bot_data.get("job_queue")
+        if job_queue:
+            job_reference = job_queue.run_repeating(
+                analyze_job,
+                interval=300,  # кожні 5 хвилин
+                first=1,
+                context=update.message.chat_id
+            )
+            update.message.reply_text("Аналіз увімкнено!")
+        else:
+            update.message.reply_text("Помилка: JobQueue не знайдено!")
     else:
-        update.message.reply_text("⚠️ Аналіз вже активний.")
+        update.message.reply_text("Аналіз вже працює.")
 
 def turn_off(update: Update, context: CallbackContext):
-    job = context.bot_data.get("job_reference")
-    if job:
-        job.schedule_removal()
-        context.bot_data["analyzing"] = False
-        context.bot_data["job_reference"] = None
-        update.message.reply_text("⛔ Аналіз вимкнено.")
+    global analyzing, job_reference
+    if analyzing and job_reference:
+        job_reference.schedule_removal()
+        analyzing = False
+        update.message.reply_text("Аналіз вимкнено.")
     else:
-        update.message.reply_text("⚠️ Аналіз вже вимкнений або не запущений.")
+        update.message.reply_text("Аналіз вже вимкнений або не запущений.")
