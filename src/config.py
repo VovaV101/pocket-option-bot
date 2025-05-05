@@ -1,3 +1,4 @@
+
 # Валютні пари
 pairs_list = {
     "EUR/USD": "EURUSD=X",
@@ -13,10 +14,15 @@ pairs_list = {
 }
 
 # Параметри аналізу
-TIMEFRAME_MINUTES = 5
+TIMEFRAME_MINUTES = 5  # Аналіз кожні 5 хвилин
 
 # Змінні середовища
 import os
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 CHAT_ID = os.getenv("CHAT_ID")
+
+# Інші налаштування
+DEFAULT_INTERVAL_SENIOR = "60m"  # H1
+DEFAULT_INTERVAL_JUNIOR = "5m"   # M5
+DEFAULT_PERIOD = "2d"            # Дві доби даних
