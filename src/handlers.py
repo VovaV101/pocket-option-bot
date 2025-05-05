@@ -29,11 +29,10 @@ def pair_selected(update: Update, context: CallbackContext):
 def turn_on(update: Update, context: CallbackContext):
     global analyzing
     if not analyzing:
-        if not selected_pairs:
-            update.message.reply_text('Спочатку оберіть валютні пари командою /pairs!')
-            return
         update.message.reply_text('▶️ Аналіз увімкнено.')
-        start_analysis(selected_pairs)
+        # Передаємо список вибраних пар
+        context.bot_data["selected_pairs"] = [pairs_list[pair] for pair in selected_pairs]
+        start_analysis(context)
         analyzing = True
     else:
         update.message.reply_text('Аналіз уже увімкнений.')
