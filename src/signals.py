@@ -1,3 +1,11 @@
+import os
+import time
+import yfinance as yf
+import pandas as pd
+from telegram import Bot
+from telegram.ext import CallbackContext  # <<< ЦЕ ДОДАТИ
+from src.config import pairs_list, TIMEFRAME_MINUTES
+
 def analyze_job(context: CallbackContext = None, chat_id: str = None):
     if context:
         # Аналіз через JobQueue
