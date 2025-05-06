@@ -1,13 +1,14 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
-    CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
+    CommandHandler, CallbackQueryHandler, ContextTypes
 )
 from src.scheduler import start_scheduler, stop_scheduler
 from src.signals import selected_pairs, set_selected_pairs, get_last_check_time
+from src.config import PAIRS  # Правильний імпорт списку валютних пар!
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     buttons = [
-        [InlineKeyboardButton(pair, callback_data=pair)] for pair in selected_pairs
+        [InlineKeyboardButton(pair, callback_data=pair)] for pair in PAIRS
     ]
     markup = InlineKeyboardMarkup(buttons)
     await update.message.reply_text(
