@@ -8,7 +8,7 @@ def main():
     setup_handlers(app)
 
     print("Bot started and polling...")
-    app.run_polling()
+    app.run_polling(stop_signals=None)  # Ключова зміна для Render!
 
 if __name__ == "__main__":
     main()
