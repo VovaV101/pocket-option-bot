@@ -11,7 +11,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     markup = InlineKeyboardMarkup(buttons)
     await update.message.reply_text(
-        "Оберіть валютні пари для аналізу (натисніть кілька, потім /run):",
+        "Привіт! Я бот для пошуку сигналів на Pocket Option.\n\n"
+        "Ось що ви можете зробити:\n"
+        "- Оберіть валютні пари для аналізу (натискаючи кнопки нижче).\n"
+        "- Коли оберете пари — введіть команду /run для запуску моніторингу.\n"
+        "- Перевірити статус бота можна командою /status.\n\n"
+        "Успішної торгівлі!",
         reply_markup=markup
     )
 
