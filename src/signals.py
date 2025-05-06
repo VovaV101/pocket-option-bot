@@ -1,99 +1,81 @@
-# src/signals.py
-
-import time
-import pandas as pd
 import yfinance as yf
+import pandas as pd
 import ta
-from telegram import Bot
-from telegram.ext import CallbackContext, JobQueue
-from src.config import pairs_list, TELEGRAM_TOKEN, CHAT_ID, TIMEFRAME_MINUTES
+from datetime import datetime
+import pytz
+from src.config import M5_INTERVAL, H1_INTERVAL, SIGNAL_TIMEOUT_MINUTES
 
-selected_pairs = set()
-job = None
+selected_pairs = []
+_last_check_time = None
 
-def fetch_data(pair: str, interval: str, period: str):
+def set_selected_pairs(pair):
+    if pair not in selected_pairs:
+        selected_pairs.append(pair)
+
+def get_last_check_time():
+    if _last_check_time:
+        return _last_check_time.strftime("%d.%m.%Y %H:%M:%S")
+    else:
+        return "Ще не було перевірок."
+
+def fetch_data(pair, interval, period="2d"):
     try:
-        data = yf.download(
-            tickers=pair,
-            interval=interval,
-            period=period,
-            progress=False,
-            threads=False
-        )
+        data = yf.download(tickers=pair.replace("/", ""), interval=interval, period=period, progress=False)
         return data
     except Exception as e:
-        print(f"Помилка при завантаженні даних для {pair}: {e}")
+        print(f"Помилка завантаження даних для {pair}: {e}")
         return pd.DataFrame()
 
-def calculate_indicators(df: pd.DataFrame):
-    if df.empty:
-        return df
+def analyze_pair(pair):
+    global _last_check_time
+    try:
+        df_h1 = fetch_data(pair, H1_INTERVAL)
+        df_m5 = fetch_data(pair, M5_INTERVAL)
 
-    df["EMA_14"] = ta.trend.ema_indicator(df["Close"], window=14)
-    df["RSI_14"] = ta.momentum.rsi(df["Close"], window=14)
-    stoch = ta.momentum.StochasticOscillator(df["High"], df["Low"], df["Close"], window=14, smooth_window=3)
-    df["Stoch_K"] = stoch.stoch()
-    df["Stoch_D"] = stoch.stoch_signal()
+        if df_h1.empty or df_m5.empty:
+            return None
 
-    return df
+        # Аналіз тренду на H1
+        df_h1["ema_50"] = ta.trend.EMAIndicator(df_h1["Close"], window=50).ema_indicator()
+        df_h1["ema_200"] = ta.trend.EMAIndicator(df_h1["Close"], window=200).ema_indicator()
+        last_h1 = df_h1.iloc[-1]
 
-def get_signal(pair: str):
-    senior = fetch_data(pair, interval="60m", period="2d")
-    senior = calculate_indicators(senior)
+        up_trend = last_h1["ema_50"] > last_h1["ema_200"]
+        down_trend = last_h1["ema_50"] < last_h1["ema_200"]
 
-    if senior.empty or len(senior) < 10:
-        print(f"Недостатньо даних для H1 таймфрейму: {pair}")
-        return None
+        # Аналіз сигналу на M5
+        df_m5["rsi"] = ta.momentum.RSIIndicator(df_m5["Close"]).rsi()
+        df_m5["ema_50"] = ta.trend.EMAIndicator(df_m5["Close"], window=50).ema_indicator()
+        df_m5["ema_200"] = ta.trend.EMAIndicator(df_m5["Close"], window=200).ema_indicator()
+        stoch = ta.momentum.StochasticOscillator(df_m5["High"], df_m5["Low"], df_m5["Close"])
+        df_m5["stoch_k"] = stoch.stoch()
 
-    trend_up = senior["EMA_14"].iloc[-1] > senior["EMA_14"].iloc[-5]
-    trend_down = senior["EMA_14"].iloc[-1] < senior["EMA_14"].iloc[-5]
+        last_m5 = df_m5.iloc[-1]
 
-    junior = fetch_data(pair, interval="5m", period="2d")
-    junior = calculate_indicators(junior)
+        buy_signal = (
+            up_trend and
+            last_m5["rsi"] < 30 and
+            last_m5["ema_50"] > last_m5["ema_200"] and
+            last_m5["stoch_k"] < 30
+        )
 
-    if junior.empty or len(junior) < 10:
-        print(f"Недостатньо даних для M5 таймфрейму: {pair}")
-        return None
+        sell_signal = (
+            down_trend and
+            last_m5["rsi"] > 70 and
+            last_m5["ema_50"] < last_m5["ema_200"] and
+            last_m5["stoch_k"] > 70
+        )
 
-    last = junior.iloc[-1]
-    rsi = last["RSI_14"]
-    stoch_k = last["Stoch_K"]
-    stoch_d = last["Stoch_D"]
+        # Оновлюємо час останньої перевірки
+        kyiv_tz = pytz.timezone('Europe/Kyiv')
+        _last_check_time = datetime.now(kyiv_tz)
 
-    if trend_up and rsi > 50 and stoch_k > stoch_d and stoch_k > 20:
-        return "UP"
-    elif trend_down and rsi < 50 and stoch_k < stoch_d and stoch_k < 80:
-        return "DOWN"
-    else:
-        return None
-
-def analyze(context: CallbackContext):
-    bot = context.bot
-    for pair in selected_pairs:
-        ticker = pairs_list.get(pair)
-        if not ticker:
-            continue
-
-        signal = get_signal(ticker)
-        if signal:
-            bot.send_message(
-                chat_id=CHAT_ID,
-                text=f"📈 {pair}: Сигнал {signal} на {TIMEFRAME_MINUTES * 3} хвилин!\nЧас: {time.strftime('%H:%M:%S')}"
-            )
-            print(f"Сигнал для {pair}: {signal}")
+        if buy_signal:
+            return f"{pair} — Вхід UP на {SIGNAL_TIMEOUT_MINUTES} хвилин"
+        elif sell_signal:
+            return f"{pair} — Вхід DOWN на {SIGNAL_TIMEOUT_MINUTES} хвилин"
         else:
-            print(f"Немає сигналу для {pair}")
-
-def start_analysis(context: CallbackContext):
-    global job
-    if job is None:
-        job_queue: JobQueue = context.job_queue
-        job = job_queue.run_repeating(analyze, interval=TIMEFRAME_MINUTES * 60, first=5)
-        print("Аналіз запущено.")
-
-def stop_analysis(context: CallbackContext):
-    global job
-    if job is not None:
-        job.schedule_removal()
-        job = None
-        print("Аналіз зупинено.")
+            return None
+    except Exception as e:
+        print(f"Помилка аналізу для {pair}: {e}")
+        return None
