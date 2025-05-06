@@ -1,5 +1,5 @@
-Flask
 python-telegram-bot==20.3
 pandas
 yfinance
 ta
+pytz
