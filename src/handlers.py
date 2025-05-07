@@ -14,7 +14,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Привіт! Я бот для пошуку сигналів на Pocket Option.\n\n"
         "Оберіть валютні пари для аналізу (натискаючи кнопки нижче).\n"
         "Коли оберете пари — введіть команду /run для запуску моніторингу.\n"
-        "Перевірити статус бота: /status.",
+        "Перевірити статус бота: /status або /pairs.",
         reply_markup=markup
     )
 
