@@ -6,14 +6,25 @@ task = None
 
 async def check_signals(bot: Bot):
     while True:
-        for pair in selected_pairs:
-            signal = analyze_pair(pair)
-            if signal:
-                await bot.send_message(chat_id=bot.chat_id, text=signal)
-                await asyncio.sleep(0.5)  # невелика пауза між повідомленнями, щоб не банив Telegram
+        if selected_pairs:
+            for pair in selected_pairs:
+                signal = analyze_pair(pair)
+                if signal:
+                    await bot.send_message(
+                        chat_id=bot.chat_id,
+                        text=f"Сигнал для {pair}: {signal} на 15 хвилин"
+                    )
+                await asyncio.sleep(0.5)  # невелика пауза між повідомленнями
+            await bot.send_message(
+                chat_id=bot.chat_id,
+                text="Бот активний: всі вибрані пари проаналізовано. Чекаємо наступну перевірку через 5 хвилин."
+            )
+        else:
+            await bot.send_message(
+                chat_id=bot.chat_id,
+                text="Увага! Поки що немає обраних пар для моніторингу."
+            )
 
-        # Після перевірки всіх пар
-        await bot.send_message(chat_id=bot.chat_id, text="Бот активний: всі вибрані пари проаналізовано.")
         await asyncio.sleep(300)  # чекати 5 хвилин
 
 def start_scheduler(app):
@@ -26,7 +37,7 @@ def start_scheduler(app):
                 break
         task = asyncio.create_task(check_signals(app.bot))
 
-def stop_scheduler(app):
+def stop_scheduler():
     global task
     if task:
         task.cancel()
