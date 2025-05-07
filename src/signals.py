@@ -1,24 +1,100 @@
-from src.twelvedata_api import get_last_two_candles
+from src.twelvedata_api import (
+    get_last_two_candles_m5,
+    get_last_candles_for_indicators_m5,
+    get_last_candles_for_ema_h1
+)
+
+import numpy as np
 
 selected_pairs = []
 
+def calculate_ema(values, period):
+    weights = np.exp(np.linspace(-1., 0., period))
+    weights /= weights.sum()
+    a = np.convolve(values, weights, mode='full')[:len(values)]
+    a[:period] = a[period]
+    return a
+
+def calculate_rsi(closes, period=14):
+    deltas = np.diff(closes)
+    seed = deltas[:period]
+    up = seed[seed >= 0].sum() / period
+    down = -seed[seed < 0].sum() / period
+    rs = up / down if down != 0 else 0
+    rsi = np.zeros_like(closes)
+    rsi[:period] = 100. - 100. / (1. + rs)
+
+    for i in range(period, len(closes)):
+        delta = deltas[i - 1]
+        if delta > 0:
+            upval = delta
+            downval = 0.
+        else:
+            upval = 0.
+            downval = -delta
+
+        up = (up * (period - 1) + upval) / period
+        down = (down * (period - 1) + downval) / period
+        rs = up / down if down != 0 else 0
+        rsi[i] = 100. - 100. / (1. + rs)
+
+    return rsi
+
+def calculate_stochastic(highs, lows, closes, period=14):
+    stochastics = []
+    for i in range(period - 1, len(closes)):
+        highest_high = max(highs[i - period + 1:i + 1])
+        lowest_low = min(lows[i - period + 1:i + 1])
+        if highest_high == lowest_low:
+            stochastics.append(0)
+        else:
+            stochastics.append((closes[i] - lowest_low) / (highest_high - lowest_low) * 100)
+    return stochastics
+
 def analyze_pair(symbol):
     try:
-        prev_candle, last_candle = get_last_two_candles(symbol)
-        
+        # Перевірка тренду на H1 через EMA
+        candles_h1 = get_last_candles_for_ema_h1(symbol)
+        closes_h1 = [float(candle['close']) for candle in reversed(candles_h1)]
+
+        ema50 = calculate_ema(np.array(closes_h1), period=50)
+        ema200 = calculate_ema(np.array(closes_h1), period=200)
+
+        if ema50[-1] > ema200[-1]:
+            trend = "up"
+        elif ema50[-1] < ema200[-1]:
+            trend = "down"
+        else:
+            return None  # тренд не визначений
+
+        # Перевірка RSI і Stochastic на M5
+        candles_m5 = get_last_candles_for_indicators_m5(symbol)
+        closes_m5 = [float(candle['close']) for candle in reversed(candles_m5)]
+        highs_m5 = [float(candle['high']) for candle in reversed(candles_m5)]
+        lows_m5 = [float(candle['low']) for candle in reversed(candles_m5)]
+
+        rsi = calculate_rsi(np.array(closes_m5))[-1]
+        stochastic = calculate_stochastic(highs_m5, lows_m5, closes_m5)[-1]
+
+        # Перевірка останніх двох свічок на M5
+        prev_candle, last_candle = get_last_two_candles_m5(symbol)
+
         open_prev = float(prev_candle["open"])
         close_prev = float(prev_candle["close"])
         open_last = float(last_candle["open"])
         close_last = float(last_candle["close"])
-        
-        # Сигнал на підвищення
-        if close_prev > open_prev and close_last > open_last:
+
+        two_green = close_prev > open_prev and close_last > open_last
+        two_red = close_prev < open_prev and close_last < open_last
+
+        # Формуємо рішення на вхід
+        if trend == "up" and rsi < 30 and stochastic < 20 and two_green:
             return "UP"
-        # Сигнал на зниження
-        elif close_prev < open_prev and close_last < open_last:
+        elif trend == "down" and rsi > 70 and stochastic > 80 and two_red:
             return "DOWN"
         else:
             return None
+
     except Exception as e:
         print(f"Помилка при аналізі {symbol}: {e}")
         return None
