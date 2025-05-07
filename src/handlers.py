@@ -2,9 +2,12 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     CommandHandler, CallbackQueryHandler, ContextTypes
 )
+from src.signals import analyze_pair
 from src.scheduler import start_scheduler, stop_scheduler
-from src.signals import selected_pairs, set_selected_pairs, get_last_check_time
-from src.config import PAIRS  # Правильний імпорт списку валютних пар!
+from src.config import PAIRS
+import asyncio
+
+selected_pairs = []
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     buttons = [
@@ -13,11 +16,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     markup = InlineKeyboardMarkup(buttons)
     await update.message.reply_text(
         "Привіт! Я бот для пошуку сигналів на Pocket Option.\n\n"
-        "Ось що ви можете зробити:\n"
-        "- Оберіть валютні пари для аналізу (натискаючи кнопки нижче).\n"
-        "- Коли оберете пари — введіть команду /run для запуску моніторингу.\n"
-        "- Перевірити статус бота можна командою /status.\n\n"
-        "Успішної торгівлі!",
+        "Оберіть валютні пари для аналізу (натискаючи кнопки нижче).\n"
+        "Коли оберете пари — введіть команду /run для запуску моніторингу.\n"
+        "Перевірити статус бота: /status.",
         reply_markup=markup
     )
 
@@ -25,17 +26,29 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     pair = query.data
-    set_selected_pairs(pair)
-    await query.edit_message_text(text=f"Ви обрали: {', '.join(selected_pairs)}\nКоли будете готові, напишіть /run")
+    if pair not in selected_pairs:
+        selected_pairs.append(pair)
+    selected_text = ', '.join(selected_pairs)
+    await query.edit_message_text(text=f"Ви обрали: {selected_text}\nТепер напишіть /run для старту!")
 
 async def run(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Аналіз обраних пар розпочато!")
-    start_scheduler(context.application)
+    if not selected_pairs:
+        await update.message.reply_text("Спочатку оберіть валютні пари через /start!")
+        return
+    await update.message.reply_text("Аналіз розпочато! Чекайте сигнали кожні 5 хвилин.")
+    context.job_queue.run_repeating(check_signals, interval=300, first=0, chat_id=update.effective_chat.id)
 
 async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    last_time = get_last_check_time()
-    status_msg = f"Бот активний.\nОстання перевірка: {last_time}"
-    await update.message.reply_text(status_msg)
+    await update.message.reply_text("Бот активний. Слідкую за обраними парами кожні 5 хвилин!")
+
+async def check_signals(context: ContextTypes.DEFAULT_TYPE):
+    for pair in selected_pairs:
+        signal = analyze_pair(pair)
+        if signal:
+            await context.bot.send_message(
+                chat_id=context.job.chat_id,
+                text=f"Сигнал для {pair}: {signal} на 15 хвилин"
+            )
 
 def setup_handlers(app):
     app.add_handler(CommandHandler("start", start))
