@@ -3,4 +3,4 @@ pandas
 yfinance
 ta
 pytz
-twelvedata
+requests
