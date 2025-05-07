@@ -1,4 +1,4 @@
-from twelvedata_api import get_last_two_candles
+from src.twelvedata_api import get_last_two_candles
 
 def analyze_pair(symbol):
     try:
