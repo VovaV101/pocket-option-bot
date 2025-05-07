@@ -1,5 +1,7 @@
 from src.twelvedata_api import get_last_two_candles
 
+selected_pairs = []
+
 def analyze_pair(symbol):
     try:
         prev_candle, last_candle = get_last_two_candles(symbol)
