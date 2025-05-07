@@ -14,7 +14,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Привіт! Я бот для пошуку сигналів на Pocket Option.\n\n"
         "Оберіть валютні пари для аналізу (натискаючи кнопки нижче).\n"
         "Коли оберете пари — введіть команду /run для запуску моніторингу.\n"
-        "Перевірити статус бота: /status або /pairs.",
+        "Перевірити статус бота: /status.",
         reply_markup=markup
     )
 
@@ -31,8 +31,17 @@ async def run(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not selected_pairs:
         await update.message.reply_text("Спочатку оберіть валютні пари через /start!")
         return
+
+    # Старт перевірки сигналів кожні 5 хвилин
+    if context.application.job_queue:  # <-- правильно доступаємося до JobQueue
+        context.application.job_queue.run_repeating(
+            callback=check_signals,
+            interval=300,
+            first=0,
+            chat_id=update.effective_chat.id
+        )
+
     await update.message.reply_text("Аналіз розпочато! Чекайте сигнали кожні 5 хвилин.")
-    context.job_queue.run_repeating(check_signals, interval=300, first=0, chat_id=update.effective_chat.id)
 
 async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if selected_pairs:
