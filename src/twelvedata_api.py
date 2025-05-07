@@ -26,13 +26,13 @@ def get_last_two_candles_m5(symbol):
     return candles[1], candles[0]  # попередня, остання
 
 def get_last_candles_for_indicators_m5(symbol):
-    candles = fetch_candles(symbol, interval="5min", outputsize=14)
+    candles = fetch_candles(symbol, interval="5min", outputsize=20)
     if len(candles) < 14:
         raise Exception(f"Недостатньо даних для розрахунку RSI/Stochastic для {symbol} на M5")
     return candles
 
 def get_last_candles_for_ema_h1(symbol):
-    candles = fetch_candles(symbol, interval="1h", outputsize=100)
-    if len(candles) < 100:
+    candles = fetch_candles(symbol, interval="1h", outputsize=300)  # ← Виправлено на 300
+    if len(candles) < 200:  # ← Має бути мінімум 200 свічок
         raise Exception(f"Недостатньо даних для розрахунку EMA для {symbol} на H1")
     return candles
