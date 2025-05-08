@@ -53,21 +53,22 @@ def calculate_stochastic(highs, lows, closes, period=14):
 
 def analyze_pair(symbol):
     try:
-        # Перевірка тренду на H1 через EMA
+        # Завантаження свічок на H1 для тренду
         candles_h1 = get_last_candles_for_ema_h1(symbol)
         closes_h1 = [float(candle['close']) for candle in reversed(candles_h1)]
 
         ema50 = calculate_ema(np.array(closes_h1), period=50)
         ema200 = calculate_ema(np.array(closes_h1), period=200)
 
-        if ema50[-1] > ema200[-1]:
+        # ВАЖЛИВО: тепер беремо тренд по закритій свічці [-2]
+        if ema50[-2] > ema200[-2]:
             trend = "up"
-        elif ema50[-1] < ema200[-1]:
+        elif ema50[-2] < ema200[-2]:
             trend = "down"
         else:
-            return None  # Тренд не визначено
+            return None
 
-        # Перевірка RSI і Stochastic на M5
+        # Завантаження свічок на M5 для індикаторів
         candles_m5 = get_last_candles_for_indicators_m5(symbol)
         closes_m5 = [float(candle['close']) for candle in reversed(candles_m5)]
         highs_m5 = [float(candle['high']) for candle in reversed(candles_m5)]
@@ -76,27 +77,30 @@ def analyze_pair(symbol):
         rsi = calculate_rsi(np.array(closes_m5))[-1]
         stochastic = calculate_stochastic(highs_m5, lows_m5, closes_m5)[-1]
 
-        # Перевірка останньої свічки на M5
-        _, last_candle = get_last_two_candles_m5(symbol)
+        # Останні дві свічки на M5
+        prev_candle, last_candle = get_last_two_candles_m5(symbol)
 
+        open_prev = float(prev_candle["open"])
+        close_prev = float(prev_candle["close"])
         open_last = float(last_candle["open"])
         close_last = float(last_candle["close"])
 
+        # Перевірка кольору свічок
         is_green = close_last > open_last
         is_red = close_last < open_last
 
-        # Дебаг-логіка
+        # Якщо режим дебагу увімкнений, виводимо додаткову інформацію
         if debug_mode:
-            print(f"[DEBUG] Перевірка {symbol}")
-            print(f"[DEBUG] EMA50: {ema50[-1]:.5f}, EMA200: {ema200[-1]:.5f}")
+            print(f"[DEBUG] {symbol} Тренд: {trend}")
+            print(f"[DEBUG] EMA50[-2]: {ema50[-2]:.5f}, EMA200[-2]: {ema200[-2]:.5f}")
             print(f"[DEBUG] RSI: {rsi:.2f}")
             print(f"[DEBUG] Stochastic: {stochastic:.2f}")
-            print(f"[DEBUG] Остання свічка: {'зелена' if is_green else 'червона' if is_red else 'нейтральна'}")
+            print(f"[DEBUG] Свічка: {'зелена' if is_green else 'червона'}")
 
-        # Нова логіка сигналу
-        if trend == "up" and rsi < 40 and stochastic < 40 and is_green:
+        # Нові умови для сигналу:
+        if trend == "up" and rsi < 30 and stochastic < 20 and is_green:
             return "UP"
-        elif trend == "down" and rsi > 60 and stochastic > 60 and is_red:
+        elif trend == "down" and rsi > 70 and stochastic > 80 and is_red:
             return "DOWN"
         else:
             return None
