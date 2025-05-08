@@ -3,10 +3,10 @@ from src.twelvedata_api import (
     get_last_candles_for_indicators_m5,
     get_last_candles_for_ema_h1
 )
-
 import numpy as np
 
 selected_pairs = []
+debug_mode = False  # ← Додаємо глобальну змінну для режиму дебагу
 
 def calculate_ema(values, period):
     weights = np.exp(np.linspace(-1., 0., period))
@@ -86,6 +86,15 @@ def analyze_pair(symbol):
 
         two_green = close_prev > open_prev and close_last > open_last
         two_red = close_prev < open_prev and close_last < open_last
+
+        # === Додано: логування в режимі debug ===
+        if debug_mode:
+            print(f"[DEBUG] Перевірка {symbol}")
+            print(f"[DEBUG] EMA50: {ema50[-1]:.5f}, EMA200: {ema200[-1]:.5f}")
+            print(f"[DEBUG] RSI: {rsi:.2f}")
+            print(f"[DEBUG] Stochastic: {stochastic:.2f}")
+            print(f"[DEBUG] Свічки: two_green={two_green}, two_red={two_red}")
+        # ==========================================
 
         # Формуємо рішення на вхід
         if trend == "up" and rsi < 30 and stochastic < 20 and two_green:
