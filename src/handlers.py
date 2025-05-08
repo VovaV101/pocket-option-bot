@@ -24,15 +24,15 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     pair = query.data
     if pair not in selected_pairs:
         selected_pairs.append(pair)
+
     selected_text = ', '.join(selected_pairs)
-    await query.edit_message_text(text=f"Ви обрали: {selected_text}\nТепер напишіть /run для старту!")
+    await query.message.reply_text(f"Ви обрали: {selected_text}\nТепер напишіть /run для старту!")
 
 async def run(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not selected_pairs:
         await update.message.reply_text("Спочатку оберіть валютні пари через /start!")
         return
 
-    # Старт перевірки сигналів кожні 5 хвилин
     if context.application.job_queue:
         context.application.job_queue.run_repeating(
             callback=check_signals,
@@ -69,7 +69,6 @@ async def check_signals(context: ContextTypes.DEFAULT_TYPE):
 async def test(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("ТЕСТОВИЙ СИГНАЛ: EUR/USD UP на 15 хвилин")
 
-# Ось нова команда /debug
 async def debug(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logs = []
 
@@ -101,4 +100,4 @@ def setup_handlers(app):
     app.add_handler(CommandHandler("status", status))
     app.add_handler(CommandHandler("pairs", pairs))
     app.add_handler(CommandHandler("test", test))
-    app.add_handler(CommandHandler("debug", debug))  # Додаємо нову команду тут!
+    app.add_handler(CommandHandler("debug", debug))
