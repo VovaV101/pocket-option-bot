@@ -33,7 +33,7 @@ async def run(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # Старт перевірки сигналів кожні 5 хвилин
-    if context.application.job_queue:  # <-- правильно доступаємося до JobQueue
+    if context.application.job_queue:
         context.application.job_queue.run_repeating(
             callback=check_signals,
             interval=300,
@@ -65,8 +65,34 @@ async def check_signals(context: ContextTypes.DEFAULT_TYPE):
                 chat_id=context.job.chat_id,
                 text=f"Сигнал для {pair}: {signal} на 15 хвилин"
             )
+
 async def test(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("ТЕСТОВИЙ СИГНАЛ: EUR/USD UP на 15 хвилин")
+
+# Ось нова команда /debug
+async def debug(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logs = []
+
+    if not selected_pairs:
+        await update.message.reply_text("Немає обраних пар для аналізу.")
+        return
+
+    for pair in selected_pairs:
+        try:
+            signal = analyze_pair(pair)
+            if signal:
+                logs.append(f"{pair}: Сигнал {signal}")
+            else:
+                logs.append(f"{pair}: Немає чіткого сигналу.")
+        except Exception as e:
+            logs.append(f"{pair}: Помилка при аналізі: {e}")
+
+    log_message = "\n".join(logs)
+
+    if not log_message:
+        log_message = "Немає даних для відображення."
+
+    await update.message.reply_text(log_message)
 
 def setup_handlers(app):
     app.add_handler(CommandHandler("start", start))
@@ -75,3 +101,4 @@ def setup_handlers(app):
     app.add_handler(CommandHandler("status", status))
     app.add_handler(CommandHandler("pairs", pairs))
     app.add_handler(CommandHandler("test", test))
+    app.add_handler(CommandHandler("debug", debug))  # Додаємо нову команду тут!
