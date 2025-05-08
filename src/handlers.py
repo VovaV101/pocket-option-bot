@@ -65,6 +65,8 @@ async def check_signals(context: ContextTypes.DEFAULT_TYPE):
                 chat_id=context.job.chat_id,
                 text=f"Сигнал для {pair}: {signal} на 15 хвилин"
             )
+async def test(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("ТЕСТОВИЙ СИГНАЛ: EUR/USD UP на 15 хвилин")
 
 def setup_handlers(app):
     app.add_handler(CommandHandler("start", start))
@@ -72,3 +74,4 @@ def setup_handlers(app):
     app.add_handler(CommandHandler("run", run))
     app.add_handler(CommandHandler("status", status))
     app.add_handler(CommandHandler("pairs", pairs))
+    app.add_handler(CommandHandler("test", test))
