@@ -6,7 +6,7 @@ from src.twelvedata_api import (
 import numpy as np
 
 selected_pairs = []
-debug_mode = False  # ← Додаємо глобальну змінну для режиму дебагу
+debug_mode = False  # Режим дебагу
 
 def calculate_ema(values, period):
     weights = np.exp(np.linspace(-1., 0., period))
@@ -65,7 +65,7 @@ def analyze_pair(symbol):
         elif ema50[-1] < ema200[-1]:
             trend = "down"
         else:
-            return None  # тренд не визначений
+            return None  # Тренд не визначено
 
         # Перевірка RSI і Stochastic на M5
         candles_m5 = get_last_candles_for_indicators_m5(symbol)
@@ -76,30 +76,27 @@ def analyze_pair(symbol):
         rsi = calculate_rsi(np.array(closes_m5))[-1]
         stochastic = calculate_stochastic(highs_m5, lows_m5, closes_m5)[-1]
 
-        # Перевірка останніх двох свічок на M5
-        prev_candle, last_candle = get_last_two_candles_m5(symbol)
+        # Перевірка останньої свічки на M5
+        _, last_candle = get_last_two_candles_m5(symbol)
 
-        open_prev = float(prev_candle["open"])
-        close_prev = float(prev_candle["close"])
         open_last = float(last_candle["open"])
         close_last = float(last_candle["close"])
 
-        two_green = close_prev > open_prev and close_last > open_last
-        two_red = close_prev < open_prev and close_last < open_last
+        is_green = close_last > open_last
+        is_red = close_last < open_last
 
-        # === Додано: логування в режимі debug ===
+        # Дебаг-логіка
         if debug_mode:
             print(f"[DEBUG] Перевірка {symbol}")
             print(f"[DEBUG] EMA50: {ema50[-1]:.5f}, EMA200: {ema200[-1]:.5f}")
             print(f"[DEBUG] RSI: {rsi:.2f}")
             print(f"[DEBUG] Stochastic: {stochastic:.2f}")
-            print(f"[DEBUG] Свічки: two_green={two_green}, two_red={two_red}")
-        # ==========================================
+            print(f"[DEBUG] Остання свічка: {'зелена' if is_green else 'червона' if is_red else 'нейтральна'}")
 
-        # Формуємо рішення на вхід
-        if trend == "up" and rsi < 30 and stochastic < 20 and two_green:
+        # Нова логіка сигналу
+        if trend == "up" and rsi < 40 and stochastic < 40 and is_green:
             return "UP"
-        elif trend == "down" and rsi > 70 and stochastic > 80 and two_red:
+        elif trend == "down" and rsi > 60 and stochastic > 60 and is_red:
             return "DOWN"
         else:
             return None
