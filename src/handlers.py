@@ -4,11 +4,10 @@ from telegram.ext import (
 )
 from src.signals import analyze_pair, selected_pairs
 from src.config import PAIRS
+from src import signals  # ← для доступу до debug_mode і last_debug_output
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    buttons = [
-        [InlineKeyboardButton(pair, callback_data=pair)] for pair in PAIRS
-    ]
+    buttons = [[InlineKeyboardButton(pair, callback_data=pair)] for pair in PAIRS]
     markup = InlineKeyboardMarkup(buttons)
     await update.message.reply_text(
         "Привіт! Я бот для пошуку сигналів на Pocket Option.\n\n"
@@ -24,7 +23,6 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     pair = query.data
     if pair not in selected_pairs:
         selected_pairs.append(pair)
-
     selected_text = ', '.join(selected_pairs)
     await query.message.reply_text(f"Ви обрали: {selected_text}\nТепер напишіть /run для старту!")
 
@@ -32,7 +30,6 @@ async def run(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not selected_pairs:
         await update.message.reply_text("Спочатку оберіть валютні пари через /start!")
         return
-
     if context.application.job_queue:
         context.application.job_queue.run_repeating(
             callback=check_signals,
@@ -40,7 +37,6 @@ async def run(update: Update, context: ContextTypes.DEFAULT_TYPE):
             first=0,
             chat_id=update.effective_chat.id
         )
-
     await update.message.reply_text("Аналіз розпочато! Чекайте сигнали кожні 5 хвилин.")
 
 async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -76,6 +72,8 @@ async def debug(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Немає обраних пар для аналізу.")
         return
 
+    signals.debug_mode = True  # Увімкнути режим дебагу
+
     for pair in selected_pairs:
         try:
             signal = analyze_pair(pair)
@@ -83,15 +81,15 @@ async def debug(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 logs.append(f"{pair}: Сигнал {signal}")
             else:
                 logs.append(f"{pair}: Немає чіткого сигналу.")
+            logs.extend(signals.last_debug_output)
         except Exception as e:
             logs.append(f"{pair}: Помилка при аналізі: {e}")
 
-    log_message = "\n".join(logs)
+    signals.debug_mode = False  # Вимкнути після аналізу
 
-    if not log_message:
-        log_message = "Немає даних для відображення."
-
-    await update.message.reply_text(log_message)
+    # Telegram обмежує повідомлення до 4096 символів
+    for i in range(0, len(logs), 40):
+        await update.message.reply_text("\n".join(logs[i:i+40]))
 
 def setup_handlers(app):
     app.add_handler(CommandHandler("start", start))
