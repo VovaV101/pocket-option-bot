@@ -11,19 +11,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     markup = InlineKeyboardMarkup(buttons)
     await update.message.reply_text(
-        "Привіт! Я бот для пошуку сигналів на Pocket Option.
-
-"
-        "Оберіть до 3 валютних пар для аналізу (натискаючи кнопки нижче).
-"
-        "Коли оберете пари — введіть команду /run для запуску моніторингу.
-"
-        "Перевірити статус бота: /status.
-"
-        "Скинути вибір пар: /reset.",
+    "Привіт! Я бот для пошуку сигналів на Pocket Option.\n\n"
+    "Оберіть до 3 валютних пар для аналізу (натискаючи кнопки нижче).\n"
+    "Коли оберете пари — введіть команду /run для запуску моніторингу.\n"
+    "Перевірити статус бота: /status.\n"
+    "Скинути вибір пар: /reset."
+)
         reply_markup=markup
-    )
-
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
