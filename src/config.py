@@ -3,9 +3,8 @@ import os
 BOT_TOKEN = os.getenv('BOT_TOKEN')  # або вставити свій токен прямо сюди в лапках
 
 PAIRS = [
-    "EUR/USD", "GBP/USD", "USD/JPY", "USD/CAD",
-    "AUD/USD", "NZD/USD", "GBP/JPY", "EUR/JPY",
-    "GBP/CHF", "EUR/GBP"
+    "EUR/USD", "GBP/USD", "USD/JPY",
+    "GBP/JPY", "EUR/JPY", "USD/CAD"
 ]
 
 M5_INTERVAL = "5m"
