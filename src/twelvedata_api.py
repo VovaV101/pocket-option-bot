@@ -32,7 +32,7 @@ def get_last_candles_for_indicators_m5(symbol):
     return candles
 
 def get_last_candles_for_ema_h1(symbol):
-    candles = fetch_candles(symbol, interval="1h", outputsize=300)  # ← Виправлено на 300
-    if len(candles) < 200:  # ← Має бути мінімум 200 свічок
+    candles = fetch_candles(symbol, interval="1h", outputsize=300)  # забезпечуємо достатньо даних для EMA200
+    if len(candles) < 200:
         raise Exception(f"Недостатньо даних для розрахунку EMA для {symbol} на H1")
     return candles
