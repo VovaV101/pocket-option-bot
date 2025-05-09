@@ -6,7 +6,8 @@ from src.twelvedata_api import (
 import numpy as np
 
 selected_pairs = []
-debug_mode = False  # ← True для відлагодження вручну через /debug
+debug_mode = False
+last_debug_output = []  
 
 def calculate_ema(values, period):
     weights = np.exp(np.linspace(-1., 0., period))
@@ -47,8 +48,10 @@ def calculate_stochastic(highs, lows, closes, period=14):
     return stochastics
 
 def analyze_pair(symbol):
+    global last_debug_output
+    last_debug_output = []  # Очистити попередній лог
+
     try:
-        # === Тренд на H1 через EMA ===
         candles_h1 = get_last_candles_for_ema_h1(symbol)
         closes_h1 = [float(candle['close']) for candle in reversed(candles_h1)]
 
@@ -60,11 +63,9 @@ def analyze_pair(symbol):
         elif ema50[-2] < ema200[-2]:
             trend = "down"
         else:
-            if debug_mode:
-                print(f"[DEBUG] {symbol}: Тренд не визначений")
+            last_debug_output.append(f"[{symbol}] Тренд не визначений.")
             return None
 
-        # === Індикатори на M5 ===
         candles_m5 = get_last_candles_for_indicators_m5(symbol)
         closes_m5 = [float(candle['close']) for candle in reversed(candles_m5)]
         highs_m5 = [float(candle['high']) for candle in reversed(candles_m5)]
@@ -73,7 +74,6 @@ def analyze_pair(symbol):
         rsi = calculate_rsi(np.array(closes_m5))[-1]
         stochastic = calculate_stochastic(highs_m5, lows_m5, closes_m5)[-1]
 
-        # === Колір останньої свічки ===
         prev_candle, last_candle = get_last_two_candles_m5(symbol)
         open_prev = float(prev_candle["open"])
         close_prev = float(prev_candle["close"])
@@ -83,15 +83,15 @@ def analyze_pair(symbol):
         is_green = close_last > open_last
         is_red = close_last < open_last
 
-        # === DEBUG ВИВІД ===
         if debug_mode:
-            print(f"\n[DEBUG] Аналіз: {symbol}")
-            print(f"[DEBUG] Тренд: {trend}")
-            print(f"[DEBUG] EMA50[-2]: {ema50[-2]:.5f}, EMA200[-2]: {ema200[-2]:.5f}")
-            print(f"[DEBUG] RSI: {rsi:.2f}, Stochastic: {stochastic:.2f}")
-            print(f"[DEBUG] Свічка: {'зелена' if is_green else 'червона'}")
+            last_debug_output.extend([
+                f"[{symbol}] Тренд: {trend}",
+                f"[{symbol}] EMA50[-2]: {ema50[-2]:.5f}, EMA200[-2]: {ema200[-2]:.5f}",
+                f"[{symbol}] RSI: {rsi:.2f}",
+                f"[{symbol}] Stochastic: {stochastic:.2f}",
+                f"[{symbol}] Свічка: {'зелена' if is_green else 'червона'}"
+            ])
 
-        # === Сигнали ===
         if trend == "up" and rsi < 30 and stochastic < 20 and is_green:
             return "UP"
         elif trend == "down" and rsi > 70 and stochastic > 80 and is_red:
@@ -100,5 +100,5 @@ def analyze_pair(symbol):
             return None
 
     except Exception as e:
-        print(f"[ERROR] {symbol}: {e}")
+        last_debug_output.append(f"[{symbol}] Помилка: {str(e)}")
         return None
